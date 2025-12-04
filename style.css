@@ -18,8 +18,6 @@ html {
     
     --color-correct: #38c172;
     --color-correct-bg: rgba(56, 193, 114, 0.15);
-    --color-misplaced: #fbbf24;
-    --color-misplaced-bg: rgba(251, 191, 36, 0.15);
     --color-incorrect: #e3342f;
     --color-incorrect-bg: rgba(227, 52, 47, 0.15);
 
@@ -275,6 +273,26 @@ input, textarea, [contenteditable] {
     opacity: 1;
 }
 
+/* Updated Reveal Mode Buttons (Sleeker Look) */
+#reveal-line-button, #reveal-show-all, #reveal-hide-all {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.85rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px; /* Slightly tighter radius for a sleeker feel */
+    font-weight: 800;
+    box-shadow: var(--shadow-sm);
+}
+#reveal-line-button {
+    /* Primary Action */
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+}
+#reveal-show-all, #reveal-hide-all {
+    /* Secondary Actions */
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+}
+
 /* --- Type Mode Styles --- */
 #type-input-area {
     background: rgba(0,0,0,0.02); /* Very subtle tint */
@@ -287,32 +305,21 @@ input, textarea, [contenteditable] {
     font-family: monospace; /* Ensure absolute alignment */
 }
 
-/* New Rich Feedback Styles */
-.feedback-token {
-    display: inline-block;
-    padding: 1px 2px;
-    border-radius: 4px;
-    margin: 0 1px;
+/* New Diff Feedback Styles */
+.type-diff-word-group {
+    display: inline-block; /* Keep words grouped */
+    margin-right: 0.2em;
 }
-.val-correct {
+.type-diff-correct {
     color: var(--color-correct);
-    background-color: var(--color-correct-bg);
 }
-.val-incorrect {
+.type-diff-incorrect {
     color: var(--color-incorrect);
-    background-color: var(--color-incorrect-bg);
     text-decoration: underline wavy var(--color-incorrect);
-    text-decoration-thickness: 1px;
 }
-.val-misplaced {
-    color: var(--color-misplaced);
-    background-color: var(--color-misplaced-bg);
-}
-.val-missing {
+.type-diff-missing {
     color: var(--color-text-secondary);
     opacity: 0.5;
-    font-style: italic;
-    border: 1px dashed var(--color-border);
 }
 
 
