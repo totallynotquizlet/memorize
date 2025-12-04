@@ -247,6 +247,8 @@ input, textarea, [contenteditable] {
     /* Ensure clean rendering */
     transform-origin: left center;
     backface-visibility: hidden;
+    /* Preserve whitespace so indentation counts as characters */
+    white-space: pre-wrap;
 }
 
 .reveal-line.hidden .reveal-hidden-part {
