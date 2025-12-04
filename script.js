@@ -14,8 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Type Mode State
         typeSettings: {
-            wordsPercentage: 100,
-            showUnderlines: true
+            wordsGivenPercentage: 0,
+            showUnderlines: true,
+            givenIndices: new Set()
         },
 
         // Order Mode State
@@ -50,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         revealPassageTitle: document.getElementById('reveal-passage-title'),
         revealContentArea: document.getElementById('reveal-content-area'),
         revealLineButton: document.getElementById('reveal-line-button'),
+        revealHintButton: document.getElementById('reveal-hint-button'),
         revealShowAll: document.getElementById('reveal-show-all'),
         revealHideAll: document.getElementById('reveal-hide-all'),
         prevPassageBtn: document.getElementById('prev-passage-btn'),
@@ -173,6 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
         app.currentMode = mode;
         dom.body.dataset.mode = mode;
 
+        // Manage navigation arrows visibility
+        updateNavigationVisibility();
+
         if (mode === 'create') {
             dom.createView.style.display = 'block';
             renderCreateEditor();
@@ -193,6 +198,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateNavigationVisibility() {
+        const passageCount = app.currentSet.passages.length;
+        const shouldHide = passageCount <= 1;
+        const displayVal = shouldHide ? 'none' : 'block';
+        
+        // Reveal mode arrows
+        dom.prevPassageBtn.style.display = displayVal;
+        dom.nextPassageBtn.style.display = displayVal;
+        
+        // Type mode arrows
+        dom.typePrevBtn.style.display = displayVal;
+        dom.typeNextBtn.style.display = displayVal;
+        
+        // Order mode arrows
+        dom.orderPrevBtn.style.display = displayVal;
+        dom.orderNextBtn.style.display = displayVal;
+    }
+
     // --- EVENT LISTENERS ---
     function addEventListeners() {
         dom.themeToggleButton.addEventListener('click', toggleTheme);
@@ -211,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reveal View
         dom.revealLineButton.addEventListener('click', revealNextLine);
+        dom.revealHintButton.addEventListener('click', revealHint);
         dom.revealShowAll.addEventListener('click', () => setRevealState('all'));
         dom.revealHideAll.addEventListener('click', () => setRevealState('none'));
         dom.prevPassageBtn.addEventListener('click', () => changePassage(-1));
@@ -219,11 +243,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Type View
         dom.typeToggleHints.addEventListener('click', toggleTypeHints);
         dom.typeWordsSlider.addEventListener('input', (e) => {
-            app.typeSettings.wordsPercentage = e.target.value;
+            app.typeSettings.wordsGivenPercentage = e.target.value;
             dom.typeWordsDisplay.textContent = e.target.value + '%';
+            // Regenerate hints when slider moves
+            initTypeMode(false); 
         });
         dom.typeCheckButton.addEventListener('click', checkTypeAnswer);
-        dom.typeResetButton.addEventListener('click', initTypeMode);
+        dom.typeResetButton.addEventListener('click', () => initTypeMode(true));
         dom.typePrevBtn.addEventListener('click', () => changePassage(-1));
         dom.typeNextBtn.addEventListener('click', () => changePassage(1));
         
@@ -308,20 +334,55 @@ document.addEventListener('DOMContentLoaded', () => {
         lines.forEach((lineText, index) => {
             const p = document.createElement('p');
             p.className = 'reveal-line hidden'; // Start hidden
-            p.textContent = lineText;
             p.dataset.index = index;
+            p.dataset.fullText = lineText;
+            p.dataset.hintCount = 0; // Tracks characters revealed via hint
+
+            // Internal structure for partial reveals
+            const visibleSpan = document.createElement('span');
+            visibleSpan.className = 'reveal-visible-part';
+            
+            const hiddenSpan = document.createElement('span');
+            hiddenSpan.className = 'reveal-hidden-part';
+            hiddenSpan.textContent = lineText;
+
+            p.appendChild(visibleSpan);
+            p.appendChild(hiddenSpan);
+
             p.addEventListener('click', () => {
                  // Allow clicking specific lines to toggle
                  if (p.classList.contains('hidden')) {
-                     p.classList.remove('hidden');
-                     p.classList.add('visible');
+                     fullyRevealLine(p);
                  } else {
-                     p.classList.remove('visible');
-                     p.classList.add('hidden');
+                     hideLine(p);
                  }
             });
             dom.revealContentArea.appendChild(p);
         });
+    }
+
+    function fullyRevealLine(p) {
+        p.classList.remove('hidden');
+        p.classList.add('visible');
+        p.dataset.hintCount = p.dataset.fullText.length;
+        
+        const visibleSpan = p.querySelector('.reveal-visible-part');
+        const hiddenSpan = p.querySelector('.reveal-hidden-part');
+        
+        visibleSpan.textContent = p.dataset.fullText;
+        hiddenSpan.textContent = '';
+    }
+
+    function hideLine(p) {
+        p.classList.remove('visible');
+        p.classList.add('hidden');
+        p.dataset.hintCount = 0;
+        
+        const visibleSpan = p.querySelector('.reveal-visible-part');
+        const hiddenSpan = p.querySelector('.reveal-hidden-part');
+        
+        visibleSpan.textContent = '';
+        hiddenSpan.textContent = p.dataset.fullText;
     }
 
     function revealNextLine() {
@@ -337,12 +398,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (nextHiddenIndex !== -1) {
             const line = lines[nextHiddenIndex];
-            line.classList.remove('hidden');
-            line.classList.add('visible');
+            fullyRevealLine(line);
+            
             // Smooth scroll to keep context
-            if (nextHiddenIndex > 2) { // Only scroll if we are a bit down
+            if (nextHiddenIndex > 2) { 
                  line.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+        }
+    }
+
+    function revealHint() {
+        const lines = dom.revealContentArea.querySelectorAll('.reveal-line');
+        let nextHiddenLine = null;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].classList.contains('hidden')) {
+                nextHiddenLine = lines[i];
+                break;
+            }
+        }
+
+        if (nextHiddenLine) {
+            const fullText = nextHiddenLine.dataset.fullText;
+            let currentHintCount = parseInt(nextHiddenLine.dataset.hintCount) || 0;
+            
+            if (currentHintCount < fullText.length) {
+                currentHintCount++;
+                nextHiddenLine.dataset.hintCount = currentHintCount;
+                
+                const visiblePart = fullText.substring(0, currentHintCount);
+                const hiddenPart = fullText.substring(currentHintCount);
+                
+                nextHiddenLine.querySelector('.reveal-visible-part').textContent = visiblePart;
+                nextHiddenLine.querySelector('.reveal-hidden-part').textContent = hiddenPart;
+            } else {
+                fullyRevealLine(nextHiddenLine);
+            }
+            
+            // Ensure we are scrolled to it
+            nextHiddenLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
 
@@ -352,26 +445,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state === 'all') {
             lines.forEach((line, i) => {
                 setTimeout(() => {
-                    line.classList.remove('hidden');
-                    line.classList.add('visible');
+                    fullyRevealLine(line);
                 }, i * 30); // 30ms stagger
             });
         } else {
             lines.forEach(line => {
-                line.classList.remove('visible');
-                line.classList.add('hidden');
+                hideLine(line);
             });
         }
     }
 
     // --- TYPE MODE ---
-    function initTypeMode() {
+    function initTypeMode(resetInput = true) {
         const passage = app.currentSet.passages[app.currentPassageIndex];
         dom.typePassageTitle.textContent = passage.title || "Untitled Passage";
-        dom.typeInputArea.value = '';
-        dom.typeFeedback.className = 'mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md';
-        dom.typeFeedback.textContent = '';
         
+        if (resetInput) {
+            dom.typeInputArea.value = '';
+            dom.typeFeedback.className = 'mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md';
+            dom.typeFeedback.textContent = '';
+        }
+        
+        // Determine which words to give (hint)
+        const normalize = str => str.replace(/\n/g, ' \n ').split(' ').filter(x => x);
+        const words = normalize(passage.content);
+        const totalWords = words.length;
+        const wordsToGiveCount = Math.floor(totalWords * (app.typeSettings.wordsGivenPercentage / 100));
+        
+        // Randomly select indices if we need to regenerate
+        app.typeSettings.givenIndices = new Set();
+        while (app.typeSettings.givenIndices.size < wordsToGiveCount) {
+            const idx = Math.floor(Math.random() * totalWords);
+            // Don't hide newlines
+            if (words[idx].trim() !== '') {
+                app.typeSettings.givenIndices.add(idx);
+            }
+        }
+
         updateTypeGhost();
     }
 
@@ -390,8 +500,27 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Generate ghost text (replace alphanumeric chars with underscore)
-        const ghostText = passage.content.replace(/[a-zA-Z0-9]/g, '_');
+        // Logic: 
+        // 1. Split original text into tokens (preserving newlines/spaces mostly for visual matching)
+        // 2. If index is in givenIndices, show the word.
+        // 3. Else, replace alphanumeric chars with underscore.
+        
+        // A simple split strategy that handles newlines
+        let currentWordIndex = 0;
+        const ghostText = passage.content.replace(/[\w\u00C0-\u00FF]+|\n/g, (match) => {
+            if (match === '\n') return '\n';
+            
+            // Check if this word should be given
+            const isGiven = app.typeSettings.givenIndices.has(currentWordIndex);
+            currentWordIndex++;
+
+            if (isGiven) {
+                return match;
+            } else {
+                return match.replace(/[a-zA-Z0-9\u00C0-\u00FF]/g, '_');
+            }
+        });
+
         dom.typeGhostOverlay.textContent = ghostText;
     }
 
@@ -415,16 +544,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const totalWords = targetWords.length;
-        const requiredWords = Math.ceil(totalWords * (app.typeSettings.wordsPercentage / 100));
+        // Previously requiredWords was based on slider, now slider is hints. 
+        // We just default to 100% mastery goal or just show the score.
         
         dom.typeFeedback.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
         dom.typeFeedback.classList.add('animate-pop'); // Trigger animation
 
-        if (correctCount >= requiredWords) {
-            dom.typeFeedback.textContent = `Success! You matched ${correctCount}/${totalWords} words (Target: ${requiredWords}).`;
+        if (correctCount === totalWords) {
+            dom.typeFeedback.textContent = `Success! You matched ${correctCount}/${totalWords} words.`;
             dom.typeFeedback.classList.add('bg-green-100', 'text-green-800');
         } else {
-            dom.typeFeedback.textContent = `Keep going! ${correctCount}/${totalWords} words correct. Need ${requiredWords} to pass.`;
+            dom.typeFeedback.textContent = `Keep going! ${correctCount}/${totalWords} words correct.`;
             dom.typeFeedback.classList.add('bg-red-100', 'text-red-800');
         }
         
