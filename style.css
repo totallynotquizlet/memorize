@@ -18,6 +18,8 @@ html {
     
     --color-correct: #38c172;
     --color-correct-bg: rgba(56, 193, 114, 0.15);
+    --color-misplaced: #fbbf24;
+    --color-misplaced-bg: rgba(251, 191, 36, 0.15);
     --color-incorrect: #e3342f;
     --color-incorrect-bg: rgba(227, 52, 47, 0.15);
 
@@ -247,7 +249,7 @@ input, textarea, [contenteditable] {
     /* Ensure clean rendering */
     transform-origin: left center;
     backface-visibility: hidden;
-    /* Preserve whitespace so indentation counts as characters */
+    /* Important: Preserves spaces so hints for indentation are visible */
     white-space: pre-wrap;
 }
 
@@ -285,16 +287,34 @@ input, textarea, [contenteditable] {
     font-family: monospace; /* Ensure absolute alignment */
 }
 
-#type-feedback.bg-green-100 {
-    background-color: var(--color-correct-bg);
+/* New Rich Feedback Styles */
+.feedback-token {
+    display: inline-block;
+    padding: 1px 2px;
+    border-radius: 4px;
+    margin: 0 1px;
+}
+.val-correct {
     color: var(--color-correct);
-    border: 1px solid var(--color-correct);
+    background-color: var(--color-correct-bg);
 }
-#type-feedback.bg-red-100 {
-    background-color: var(--color-incorrect-bg);
+.val-incorrect {
     color: var(--color-incorrect);
-    border: 1px solid var(--color-incorrect);
+    background-color: var(--color-incorrect-bg);
+    text-decoration: underline wavy var(--color-incorrect);
+    text-decoration-thickness: 1px;
 }
+.val-misplaced {
+    color: var(--color-misplaced);
+    background-color: var(--color-misplaced-bg);
+}
+.val-missing {
+    color: var(--color-text-secondary);
+    opacity: 0.5;
+    font-style: italic;
+    border: 1px dashed var(--color-border);
+}
+
 
 /* --- Order Mode Styles --- */
 .order-item {
