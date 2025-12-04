@@ -418,24 +418,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (nextHiddenLine) {
-            const fullText = nextHiddenLine.dataset.fullText;
-            let currentHintCount = parseInt(nextHiddenLine.dataset.hintCount) || 0;
+            // Check if already animating to prevent multiple intervals on same line
+            if (nextHiddenLine.dataset.isAnimating) return;
+            nextHiddenLine.dataset.isAnimating = "true";
             
-            if (currentHintCount < fullText.length) {
-                currentHintCount++;
-                nextHiddenLine.dataset.hintCount = currentHintCount;
-                
-                const visiblePart = fullText.substring(0, currentHintCount);
-                const hiddenPart = fullText.substring(currentHintCount);
-                
-                nextHiddenLine.querySelector('.reveal-visible-part').textContent = visiblePart;
-                nextHiddenLine.querySelector('.reveal-hidden-part').textContent = hiddenPart;
-            } else {
-                fullyRevealLine(nextHiddenLine);
-            }
-            
-            // Ensure we are scrolled to it
+            // Scroll to it
             nextHiddenLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            const fullText = nextHiddenLine.dataset.fullText;
+            
+            // Use interval for character-by-character animation
+            const interval = setInterval(() => {
+                // If line was fully revealed by other means (e.g. click), stop.
+                if (!nextHiddenLine.classList.contains('hidden')) {
+                    clearInterval(interval);
+                    delete nextHiddenLine.dataset.isAnimating;
+                    return;
+                }
+
+                let currentHintCount = parseInt(nextHiddenLine.dataset.hintCount) || 0;
+                
+                if (currentHintCount < fullText.length) {
+                    currentHintCount++;
+                    nextHiddenLine.dataset.hintCount = currentHintCount;
+                    
+                    const visiblePart = fullText.substring(0, currentHintCount);
+                    const hiddenPart = fullText.substring(currentHintCount);
+                    
+                    nextHiddenLine.querySelector('.reveal-visible-part').textContent = visiblePart;
+                    nextHiddenLine.querySelector('.reveal-hidden-part').textContent = hiddenPart;
+                } else {
+                    fullyRevealLine(nextHiddenLine);
+                    clearInterval(interval);
+                    delete nextHiddenLine.dataset.isAnimating;
+                }
+            }, 30); // 30ms per character for typing effect
         }
     }
 
