@@ -1,763 +1,230 @@
-document.addEventListener('DOMContentLoaded', () => {
+<!DOCTYPE html>
+<html lang="en"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>totallynotquizlet memorize</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
 
-    // --- STATE ---
-    const app = {
-        currentSet: {
-            title: '',
-            passages: [] // Array of { id, title, content }
-        },
-        currentPassageIndex: 0,
-        currentMode: 'reveal', // 'reveal', 'type', 'order', 'create', 'empty'
+    <div id="app-container" class="max-w-4xl mx-auto p-4 md:p-8 min-h-screen relative flex flex-col">
         
-        // Reveal Mode State
-        revealIndex: -1, // -1 means nothing revealed
+        <!-- Theme Toggle -->
+        <button id="theme-toggle-button" class="absolute top-6 right-6 md:top-8 md:right-10 z-50 p-2 rounded-full transition-all duration-300">
+            <span id="theme-icon-sun" class="text-3xl" style="line-height: 1;">☼</span>
+            <svg id="theme-icon-moon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
+
+        <!-- Logo -->
+        <img src="favicon.png" alt="Site Logo" id="header-logo" class="absolute top-6 md:top-8 z-50">
         
-        // Type Mode State
-        typeSettings: {
-            wordsGivenPercentage: 0,
-            showUnderlines: true,
-            givenIndices: new Set()
-        },
+        <!-- Header -->
+        <header class="mb-6 pt-16 md:pt-20"> 
+            <h1 id="header-title" class="text-3xl md:text-4xl text-center mb-8 font-extrabold tracking-tight">totallynotquizlet memorize</h1>
+            <nav class="flex justify-center flex-wrap gap-2 p-2">
+                <button data-mode="reveal" class="nav-button rounded-md">Reveal</button>
+                <button data-mode="type" class="nav-button rounded-md">Type</button>
+                <button data-mode="order" class="nav-button rounded-md">Order</button>
+                <button data-mode="create" class="nav-button rounded-md">Create</button>
+                <button id="share-deck-button" class="nav-button share-button rounded-md hidden">Share</button>
+            </nav>
+        </header>
 
-        // Order Mode State
-        orderItems: [], // Array of objects for draggable state
-        
-        draggedItem: null,
-        themeKey: 'memorizeAppTheme',
-        toastTimeout: null,
-        isCreateDirty: false
-    };
+        <main id="main-content" class="flex-grow">
 
-    // --- DOM ELEMENTS ---
-    const dom = {
-        body: document.body,
-        headerTitle: document.getElementById('header-title'),
-        navButtons: document.querySelectorAll('.nav-button'),
-        shareDeckButton: document.getElementById('share-deck-button'),
-        themeToggleButton: document.getElementById('theme-toggle-button'),
-        themeIconSun: document.getElementById('theme-icon-sun'),
-        themeIconMoon: document.getElementById('theme-icon-moon'),
-
-        // Create View
-        createView: document.getElementById('create-view'),
-        deckTitleInput: document.getElementById('deck-title-input'),
-        passageEditorList: document.getElementById('passage-editor-list'),
-        addPassageButton: document.getElementById('add-passage-button'),
-        parseDeckButton: document.getElementById('parse-deck-button'),
-        clearCreateButton: document.getElementById('clear-create-button'),
-
-        // Reveal View
-        revealView: document.getElementById('reveal-view'),
-        revealPassageTitle: document.getElementById('reveal-passage-title'),
-        revealContentArea: document.getElementById('reveal-content-area'),
-        revealLineButton: document.getElementById('reveal-line-button'),
-        revealHintButton: document.getElementById('reveal-hint-button'),
-        revealShowAll: document.getElementById('reveal-show-all'),
-        revealHideAll: document.getElementById('reveal-hide-all'),
-        prevPassageBtn: document.getElementById('prev-passage-btn'),
-        nextPassageBtn: document.getElementById('next-passage-btn'),
-        revealContainer: document.getElementById('reveal-container'),
-
-        // Type View
-        typeView: document.getElementById('type-view'),
-        typePassageTitle: document.getElementById('type-passage-title'),
-        typeInputArea: document.getElementById('type-input-area'),
-        typeGhostOverlay: document.getElementById('type-ghost-overlay'),
-        typeWordsSlider: document.getElementById('type-words-slider'),
-        typeWordsDisplay: document.getElementById('type-words-display'),
-        typeToggleHints: document.getElementById('type-toggle-hints'),
-        typeCheckButton: document.getElementById('type-check-button'),
-        typeResetButton: document.getElementById('type-reset-button'),
-        typeFeedback: document.getElementById('type-feedback'),
-        typePrevBtn: document.getElementById('type-prev-btn'),
-        typeNextBtn: document.getElementById('type-next-btn'),
-
-        // Order View
-        orderView: document.getElementById('order-view'),
-        orderPassageTitle: document.getElementById('order-passage-title'),
-        orderList: document.getElementById('order-list'),
-        orderCheckBtn: document.getElementById('order-check-btn'),
-        orderResetBtn: document.getElementById('order-reset-btn'),
-        orderPrevBtn: document.getElementById('order-prev-btn'),
-        orderNextBtn: document.getElementById('order-next-btn'),
-
-        // Modals & Misc
-        toastNotification: document.getElementById('toast-notification'),
-        emptyDeckView: document.getElementById('empty-deck-view'),
-        
-        aboutButton: document.getElementById('about-button'),
-        aboutModalOverlay: document.getElementById('about-modal-overlay'),
-        aboutModalClose: document.getElementById('about-modal-close'),
-        aboutModalBackdrop: document.querySelector('#about-modal-overlay .modal-backdrop'),
-
-        // Keybinds Modal
-        keybindsButton: document.getElementById('keybinds-button'),
-        keybindsModalOverlay: document.getElementById('keybinds-modal-overlay'),
-        keybindsModalClose: document.getElementById('keybinds-modal-close'),
-        keybindsModalBackdrop: document.querySelector('#keybinds-modal-overlay .modal-backdrop'),
-
-        clearConfirmModalOverlay: document.getElementById('clear-confirm-modal-overlay'),
-        clearConfirmButton: document.getElementById('clear-confirm-button'),
-        clearCancelButton: document.getElementById('clear-cancel-button'),
-    };
-
-    // --- INIT ---
-    function init() {
-        loadTheme();
-        loadSetFromURL();
-        addEventListeners();
-        
-        if (app.currentSet.passages.length === 0) {
-            setMode('create');
-        } else {
-            setMode('reveal');
-        }
-    }
-
-    // --- THEME ---
-    function loadTheme() {
-        const savedTheme = localStorage.getItem(app.themeKey) || 'dark';
-        setTheme(savedTheme);
-    }
-    function toggleTheme() {
-        setTheme(dom.body.classList.contains('light-mode') ? 'dark' : 'light');
-    }
-    function setTheme(theme) {
-        if (theme === 'light') {
-            dom.body.classList.add('light-mode');
-            dom.themeIconSun.classList.add('hidden');
-            dom.themeIconMoon.classList.remove('hidden');
-        } else {
-            dom.body.classList.remove('light-mode');
-            dom.themeIconSun.classList.remove('hidden');
-            dom.themeIconMoon.classList.add('hidden');
-        }
-        localStorage.setItem(app.themeKey, theme);
-    }
-
-    // --- ROUTING & DATA ---
-    function loadSetFromURL() {
-        const hash = window.location.hash.substring(1);
-        if (hash) {
-            try {
-                const json = base64UrlDecode(hash);
-                const data = JSON.parse(json);
-                if (data && Array.isArray(data.passages)) {
-                    app.currentSet = data;
-                }
-            } catch (e) {
-                console.error("Error parsing URL", e);
-                showToast("Error loading set.");
-            }
-        }
-    }
-
-    function updateURLHash() {
-        try {
-            const json = JSON.stringify(app.currentSet);
-            const hash = base64UrlEncode(json);
-            history.replaceState(null, '', '#' + hash);
-        } catch (e) { console.error(e); }
-    }
-
-    function setMode(mode) {
-        if (app.currentSet.passages.length === 0 && mode !== 'create') {
-            mode = 'empty';
-        }
-
-        // Hide all views
-        document.querySelectorAll('.app-view').forEach(el => el.style.display = 'none');
-        
-        // Update Nav
-        dom.navButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
-        dom.shareDeckButton.classList.toggle('hidden', mode === 'empty' || mode === 'create');
-        
-        app.currentMode = mode;
-        dom.body.dataset.mode = mode;
-
-        // Manage navigation arrows visibility
-        updateNavigationVisibility();
-
-        if (mode === 'create') {
-            dom.createView.style.display = 'block';
-            renderCreateEditor();
-        } else if (mode === 'empty') {
-            dom.emptyDeckView.style.display = 'block';
-        } else {
-            // Study modes
-            if (mode === 'reveal') {
-                dom.revealView.style.display = 'block';
-                initRevealMode();
-            } else if (mode === 'type') {
-                dom.typeView.style.display = 'block';
-                initTypeMode();
-            } else if (mode === 'order') {
-                dom.orderView.style.display = 'block';
-                initOrderMode();
-            }
-        }
-    }
-
-    function updateNavigationVisibility() {
-        const passageCount = app.currentSet.passages.length;
-        const shouldHide = passageCount <= 1;
-        const displayVal = shouldHide ? 'none' : 'block';
-        
-        // Reveal mode arrows
-        dom.prevPassageBtn.style.display = displayVal;
-        dom.nextPassageBtn.style.display = displayVal;
-        
-        // Type mode arrows
-        dom.typePrevBtn.style.display = displayVal;
-        dom.typeNextBtn.style.display = displayVal;
-        
-        // Order mode arrows
-        dom.orderPrevBtn.style.display = displayVal;
-        dom.orderNextBtn.style.display = displayVal;
-    }
-
-    // --- EVENT LISTENERS ---
-    function addEventListeners() {
-        dom.themeToggleButton.addEventListener('click', toggleTheme);
-        dom.navButtons.forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
-        
-        // Share
-        dom.shareDeckButton.addEventListener('click', () => {
-            const url = window.location.href;
-            navigator.clipboard.writeText(url).then(() => showToast("Link copied to clipboard!"));
-        });
-
-        // Create View
-        dom.addPassageButton.addEventListener('click', () => { createPassageRow(); app.isCreateDirty = true; });
-        dom.parseDeckButton.addEventListener('click', saveAndLoadSet);
-        dom.clearCreateButton.addEventListener('click', () => dom.clearConfirmModalOverlay.classList.add('visible'));
-        
-        // Reveal View
-        dom.revealLineButton.addEventListener('click', revealNextLine);
-        dom.revealHintButton.addEventListener('click', revealHint);
-        dom.revealShowAll.addEventListener('click', () => setRevealState('all'));
-        dom.revealHideAll.addEventListener('click', () => setRevealState('none'));
-        dom.prevPassageBtn.addEventListener('click', () => changePassage(-1));
-        dom.nextPassageBtn.addEventListener('click', () => changePassage(1));
-
-        // Type View
-        dom.typeToggleHints.addEventListener('click', toggleTypeHints);
-        dom.typeWordsSlider.addEventListener('input', (e) => {
-            app.typeSettings.wordsGivenPercentage = e.target.value;
-            dom.typeWordsDisplay.textContent = e.target.value + '%';
-            // Regenerate hints when slider moves
-            initTypeMode(false); 
-        });
-        dom.typeCheckButton.addEventListener('click', checkTypeAnswer);
-        dom.typeResetButton.addEventListener('click', () => initTypeMode(true));
-        dom.typePrevBtn.addEventListener('click', () => changePassage(-1));
-        dom.typeNextBtn.addEventListener('click', () => changePassage(1));
-        
-        // Sync scroll for ghost overlay
-        dom.typeInputArea.addEventListener('scroll', () => {
-            dom.typeGhostOverlay.scrollTop = dom.typeInputArea.scrollTop;
-        });
-        // Also sync on input to handle rapid changes
-        dom.typeInputArea.addEventListener('input', () => {
-            dom.typeGhostOverlay.scrollTop = dom.typeInputArea.scrollTop;
-        });
-
-        // Order View
-        dom.orderCheckBtn.addEventListener('click', checkOrder);
-        dom.orderResetBtn.addEventListener('click', initOrderMode);
-        dom.orderPrevBtn.addEventListener('click', () => changePassage(-1));
-        dom.orderNextBtn.addEventListener('click', () => changePassage(1));
-        
-        // Drag and Drop (Create & Order)
-        [dom.passageEditorList, dom.orderList].forEach(list => {
-            list.addEventListener('dragstart', handleDragStart);
-            list.addEventListener('dragover', handleDragOver);
-            list.addEventListener('drop', handleDrop);
-            list.addEventListener('dragend', handleDragEnd);
-        });
-
-        // Modals
-        dom.aboutButton.addEventListener('click', () => dom.aboutModalOverlay.classList.add('visible'));
-        dom.aboutModalClose.addEventListener('click', () => dom.aboutModalOverlay.classList.remove('visible'));
-        dom.aboutModalBackdrop.addEventListener('click', () => dom.aboutModalOverlay.classList.remove('visible'));
-        
-        dom.keybindsButton.addEventListener('click', () => dom.keybindsModalOverlay.classList.add('visible'));
-        dom.keybindsModalClose.addEventListener('click', () => dom.keybindsModalOverlay.classList.remove('visible'));
-        dom.keybindsModalBackdrop.addEventListener('click', () => dom.keybindsModalOverlay.classList.remove('visible'));
-
-        dom.clearCancelButton.addEventListener('click', () => dom.clearConfirmModalOverlay.classList.remove('visible'));
-        dom.clearConfirmButton.addEventListener('click', () => {
-            dom.deckTitleInput.value = '';
-            dom.passageEditorList.innerHTML = '';
-            createPassageRow(); // Add one empty
-            dom.clearConfirmModalOverlay.classList.remove('visible');
-            app.isCreateDirty = false;
-            showToast("Editor Cleared.");
-        });
-
-        // Keyboard Shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-            if (e.code === 'Space') {
-                e.preventDefault();
-                if (app.currentMode === 'reveal') {
-                    revealNextLine();
-                }
-            } else if (e.code === 'ArrowRight') {
-                changePassage(1);
-            } else if (e.code === 'ArrowLeft') {
-                changePassage(-1);
-            }
-        });
-    }
-
-    // --- GLOBAL HELPERS ---
-    function changePassage(delta) {
-        const len = app.currentSet.passages.length;
-        if (len === 0) return;
-        app.currentPassageIndex = (app.currentPassageIndex + delta + len) % len;
-        setMode(app.currentMode); // Re-init current mode
-    }
-
-    // --- REVEAL MODE ---
-    function initRevealMode() {
-        const passage = app.currentSet.passages[app.currentPassageIndex];
-        dom.revealPassageTitle.textContent = passage.title || "Untitled Passage";
-        
-        dom.revealContentArea.innerHTML = '';
-        app.revealIndex = -1;
-
-        // Split by lines
-        const lines = passage.content.split('\n').filter(line => line.trim() !== '');
-        
-        lines.forEach((lineText, index) => {
-            const p = document.createElement('p');
-            p.className = 'reveal-line hidden'; // Start hidden
-            p.dataset.index = index;
-            p.dataset.fullText = lineText;
-            p.dataset.hintCount = 0; // Tracks characters revealed via hint
-
-            // Internal structure for partial reveals
-            const visibleSpan = document.createElement('span');
-            visibleSpan.className = 'reveal-visible-part';
-            
-            const hiddenSpan = document.createElement('span');
-            hiddenSpan.className = 'reveal-hidden-part';
-            hiddenSpan.textContent = lineText;
-
-            p.appendChild(visibleSpan);
-            p.appendChild(hiddenSpan);
-
-            p.addEventListener('click', () => {
-                 // Allow clicking specific lines to toggle
-                 if (p.classList.contains('hidden')) {
-                     fullyRevealLine(p);
-                 } else {
-                     hideLine(p);
-                 }
-            });
-            dom.revealContentArea.appendChild(p);
-        });
-    }
-
-    function fullyRevealLine(p) {
-        p.classList.remove('hidden');
-        p.classList.add('visible');
-        p.dataset.hintCount = p.dataset.fullText.length;
-        
-        const visibleSpan = p.querySelector('.reveal-visible-part');
-        const hiddenSpan = p.querySelector('.reveal-hidden-part');
-        
-        visibleSpan.textContent = p.dataset.fullText;
-        hiddenSpan.textContent = '';
-    }
-
-    function hideLine(p) {
-        p.classList.remove('visible');
-        p.classList.add('hidden');
-        p.dataset.hintCount = 0;
-        
-        const visibleSpan = p.querySelector('.reveal-visible-part');
-        const hiddenSpan = p.querySelector('.reveal-hidden-part');
-        
-        visibleSpan.textContent = '';
-        hiddenSpan.textContent = p.dataset.fullText;
-    }
-
-    function revealNextLine() {
-        const lines = dom.revealContentArea.querySelectorAll('.reveal-line');
-        // Find first hidden line
-        let nextHiddenIndex = -1;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].classList.contains('hidden')) {
-                nextHiddenIndex = i;
-                break;
-            }
-        }
-
-        if (nextHiddenIndex !== -1) {
-            const line = lines[nextHiddenIndex];
-            fullyRevealLine(line);
-            
-            // Smooth scroll to keep context
-            if (nextHiddenIndex > 2) { 
-                 line.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-    }
-
-    function revealHint() {
-        const lines = dom.revealContentArea.querySelectorAll('.reveal-line');
-        let nextHiddenLine = null;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].classList.contains('hidden')) {
-                nextHiddenLine = lines[i];
-                break;
-            }
-        }
-
-        if (nextHiddenLine) {
-            // Check if already animating to prevent multiple intervals on same line
-            if (nextHiddenLine.dataset.isAnimating) return;
-            nextHiddenLine.dataset.isAnimating = "true";
-            
-            // Scroll to it
-            nextHiddenLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            const fullText = nextHiddenLine.dataset.fullText;
-            
-            // Use interval for character-by-character animation
-            const interval = setInterval(() => {
-                // If line was fully revealed by other means (e.g. click), stop.
-                if (!nextHiddenLine.classList.contains('hidden')) {
-                    clearInterval(interval);
-                    delete nextHiddenLine.dataset.isAnimating;
-                    return;
-                }
-
-                let currentHintCount = parseInt(nextHiddenLine.dataset.hintCount) || 0;
-                
-                if (currentHintCount < fullText.length) {
-                    currentHintCount++;
-                    nextHiddenLine.dataset.hintCount = currentHintCount;
-                    
-                    const visiblePart = fullText.substring(0, currentHintCount);
-                    const hiddenPart = fullText.substring(currentHintCount);
-                    
-                    nextHiddenLine.querySelector('.reveal-visible-part').textContent = visiblePart;
-                    nextHiddenLine.querySelector('.reveal-hidden-part').textContent = hiddenPart;
-                } else {
-                    fullyRevealLine(nextHiddenLine);
-                    clearInterval(interval);
-                    delete nextHiddenLine.dataset.isAnimating;
-                }
-            }, 30); // 30ms per character for typing effect
-        }
-    }
-
-    function setRevealState(state) {
-        const lines = dom.revealContentArea.querySelectorAll('.reveal-line');
-        // Stagger the reveal for a pristine effect if showing all
-        if (state === 'all') {
-            lines.forEach((line, i) => {
-                setTimeout(() => {
-                    fullyRevealLine(line);
-                }, i * 30); // 30ms stagger
-            });
-        } else {
-            lines.forEach(line => {
-                hideLine(line);
-            });
-        }
-    }
-
-    // --- TYPE MODE ---
-    function initTypeMode(resetInput = true) {
-        const passage = app.currentSet.passages[app.currentPassageIndex];
-        dom.typePassageTitle.textContent = passage.title || "Untitled Passage";
-        
-        if (resetInput) {
-            dom.typeInputArea.value = '';
-            dom.typeFeedback.className = 'mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md';
-            dom.typeFeedback.textContent = '';
-        }
-        
-        // Determine which words to give (hint)
-        const normalize = str => str.replace(/\n/g, ' \n ').split(' ').filter(x => x);
-        const words = normalize(passage.content);
-        const totalWords = words.length;
-        const wordsToGiveCount = Math.floor(totalWords * (app.typeSettings.wordsGivenPercentage / 100));
-        
-        // Randomly select indices if we need to regenerate
-        app.typeSettings.givenIndices = new Set();
-        while (app.typeSettings.givenIndices.size < wordsToGiveCount) {
-            const idx = Math.floor(Math.random() * totalWords);
-            // Don't hide newlines
-            if (words[idx].trim() !== '') {
-                app.typeSettings.givenIndices.add(idx);
-            }
-        }
-
-        updateTypeGhost();
-    }
-
-    function toggleTypeHints() {
-        app.typeSettings.showUnderlines = !app.typeSettings.showUnderlines;
-        dom.typeToggleHints.textContent = app.typeSettings.showUnderlines ? "ON" : "OFF";
-        dom.typeToggleHints.classList.toggle('active', app.typeSettings.showUnderlines);
-        updateTypeGhost();
-    }
-
-    function updateTypeGhost() {
-        const passage = app.currentSet.passages[app.currentPassageIndex];
-        
-        if (!app.typeSettings.showUnderlines) {
-            dom.typeGhostOverlay.textContent = '';
-            return;
-        }
-
-        // Logic: 
-        // 1. Split original text into tokens (preserving newlines/spaces mostly for visual matching)
-        // 2. If index is in givenIndices, show the word.
-        // 3. Else, replace alphanumeric chars with underscore.
-        
-        // A simple split strategy that handles newlines
-        let currentWordIndex = 0;
-        const ghostText = passage.content.replace(/[\w\u00C0-\u00FF]+|\n/g, (match) => {
-            if (match === '\n') return '\n';
-            
-            // Check if this word should be given
-            const isGiven = app.typeSettings.givenIndices.has(currentWordIndex);
-            currentWordIndex++;
-
-            if (isGiven) {
-                return match;
-            } else {
-                return match.replace(/[a-zA-Z0-9\u00C0-\u00FF]/g, '_');
-            }
-        });
-
-        dom.typeGhostOverlay.textContent = ghostText;
-    }
-
-    function checkTypeAnswer() {
-        const passage = app.currentSet.passages[app.currentPassageIndex];
-        const userText = dom.typeInputArea.value.trim();
-        const targetText = passage.content.trim();
-        
-        // Normalize whitespace for comparison
-        const normalize = str => str.replace(/\s+/g, ' ').toLowerCase();
-        
-        const targetWords = normalize(targetText).split(' ');
-        const userWords = normalize(userText).split(' ');
-        
-        let correctCount = 0;
-        // Check word by word (simple version)
-        userWords.forEach((word, i) => {
-            if (i < targetWords.length && word === targetWords[i]) {
-                correctCount++;
-            }
-        });
-
-        const totalWords = targetWords.length;
-        // Previously requiredWords was based on slider, now slider is hints. 
-        // We just default to 100% mastery goal or just show the score.
-        
-        dom.typeFeedback.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
-        dom.typeFeedback.classList.add('animate-pop'); // Trigger animation
-
-        if (correctCount === totalWords) {
-            dom.typeFeedback.textContent = `Success! You matched ${correctCount}/${totalWords} words.`;
-            dom.typeFeedback.classList.add('bg-green-100', 'text-green-800');
-        } else {
-            dom.typeFeedback.textContent = `Keep going! ${correctCount}/${totalWords} words correct.`;
-            dom.typeFeedback.classList.add('bg-red-100', 'text-red-800');
-        }
-        
-        // Remove animation class so it can trigger again
-        setTimeout(() => dom.typeFeedback.classList.remove('animate-pop'), 500);
-    }
-
-    // --- ORDER MODE ---
-    function initOrderMode() {
-        const passage = app.currentSet.passages[app.currentPassageIndex];
-        dom.orderPassageTitle.textContent = passage.title || "Untitled Passage";
-        dom.orderList.innerHTML = '';
-        
-        // Split by lines
-        let lines = passage.content.split('\n').filter(l => l.trim() !== '');
-        
-        // Store original index in dataset.
-        let items = lines.map((text, index) => ({ text, originalIndex: index }));
-        
-        // Shuffle
-        for (let i = items.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [items[i], items[j]] = [items[j], items[i]];
-        }
-        
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'order-item draggable-item';
-            div.draggable = true;
-            div.dataset.originalIndex = item.originalIndex;
-            div.textContent = item.text;
-            dom.orderList.appendChild(div);
-        });
-    }
-
-    function checkOrder() {
-        const items = dom.orderList.querySelectorAll('.order-item');
-        let allCorrect = true;
-        let firstIncorrect = null;
-        
-        items.forEach((item, index) => {
-            if (parseInt(item.dataset.originalIndex) === index) {
-                item.classList.add('correct');
-                item.classList.remove('incorrect');
-            } else {
-                item.classList.add('incorrect');
-                item.classList.remove('correct');
-                allCorrect = false;
-                if (!firstIncorrect) firstIncorrect = item;
-            }
-        });
-        
-        if (allCorrect) {
-            showToast("Perfect Order! well done.");
-        } else {
-            showToast("Not quite right yet. Keep trying!");
-            // Shake effect handled by CSS class
-            setTimeout(() => {
-                items.forEach(i => i.classList.remove('incorrect', 'correct'));
-            }, 2000);
-        }
-    }
-
-    // --- CREATE MODE ---
-    function renderCreateEditor() {
-        dom.deckTitleInput.value = app.currentSet.title;
-        dom.passageEditorList.innerHTML = '';
-        
-        if (app.currentSet.passages.length === 0) {
-            createPassageRow(); // Start with one
-        } else {
-            app.currentSet.passages.forEach(p => createPassageRow(p.title, p.content));
-        }
-    }
-
-    function createPassageRow(title = '', content = '') {
-        const div = document.createElement('div');
-        div.className = 'passage-editor-row draggable-item'; 
-        div.draggable = true;
-        div.innerHTML = `
-            <div class="flex justify-between items-center mb-4">
-                <span class="font-bold text-[var(--color-text-secondary)] text-sm tracking-wider">PASSAGE</span>
-                <button class="delete-card-button text-[var(--color-incorrect)] hover:text-red-400 font-bold transition-colors">&times;</button>
+            <!-- Empty View -->
+            <div id="empty-deck-view" class="app-view text-center p-8 md:p-12 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-lg">
+                <h2 class="text-2xl font-bold mb-4">No passages found!</h2>
+                <p class="mb-8 text-[var(--color-text-secondary)] text-lg">Create a new set of passages to start memorizing.</p>
+                <button data-mode="create" class="main-action-button font-bold py-3 px-8 rounded-xl text-lg shadow-md hover:shadow-lg transform transition-all">
+                    Create Set
+                </button>
             </div>
-            <input type="text" class="passage-title-input w-full bg-transparent border-b-2 border-[var(--color-border)] mb-4 p-2 font-bold text-lg focus:border-[var(--color-primary)] outline-none transition-colors" placeholder="Passage Title" value="${title}">
-            <textarea class="passage-content-input w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl p-4 h-40 focus:border-[var(--color-primary)] outline-none resize-y transition-colors leading-relaxed" placeholder="Paste text here...">${content}</textarea>
-        `;
+
+            <!-- Create View -->
+            <div id="create-view" class="app-view">
+                <div id="create-form-container" class="space-y-6">
+                    <div>
+                        <input type="text" id="deck-title-input" class="w-full text-2xl font-bold bg-transparent border-b-2 border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none py-2 transition-colors" placeholder="Set Title (e.g. 'Famous Speeches')">
+                        <label class="create-label block mt-2 text-xs font-bold tracking-wider text-[var(--color-text-secondary)]">SET TITLE</label>
+                    </div>
+                    
+                    <div class="flex justify-end items-center">
+                        <button id="clear-create-button" class="danger-action-button text-sm px-4 py-2 font-semibold">
+                            Clear All
+                        </button>
+                    </div>
+
+                    <div id="manual-input-section" class="space-y-4">
+                        <div id="passage-editor-list" class="space-y-6">
+                            <!-- JS will inject passage editors here -->
+                        </div>
+                        <button id="add-passage-button" class="w-full py-4 border-2 border-dashed border-[var(--color-border)] text-[var(--color-text-secondary)] font-bold rounded-xl hover:bg-[var(--color-card-bg)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-all">
+                            + ADD PASSAGE
+                        </button>
+                    </div>
+
+                    <button id="parse-deck-button" class="main-action-button mt-6 w-full font-bold py-4 px-6 rounded-xl text-lg shadow-lg hover:shadow-xl transform transition-all">
+                        Save & Create
+                    </button>
+                </div>
+            </div>
+
+            <!-- Reveal View (Main Mode) -->
+            <div id="reveal-view" class="app-view">
+                <!-- Navigation for multiple passages -->
+                <div class="flex justify-between items-center mb-6">
+                    <button id="prev-passage-btn" class="nav-arrow-button shadow-sm hover:shadow-md">&larr;</button>
+                    <h2 id="reveal-passage-title" class="text-xl md:text-2xl font-bold text-center flex-grow px-4">Passage Title</h2>
+                    <button id="next-passage-btn" class="nav-arrow-button shadow-sm hover:shadow-md">&rarr;</button>
+                </div>
+
+                <div id="reveal-container" class="p-6 md:p-10 rounded-2xl min-h-[400px] mb-8 relative border border-[var(--color-border)] bg-[var(--color-bg-secondary)] shadow-md">
+                    <div id="reveal-content-area" class="space-y-6 text-lg md:text-xl leading-loose font-medium">
+                        <!-- Lines injected here -->
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex flex-col md:flex-row justify-center gap-4 sticky bottom-4 md:static z-20">
+                    <div class="flex gap-3 w-full md:w-auto">
+                        <!-- Hint button removed here -->
+                        <button id="reveal-line-button" class="main-action-button py-3 px-8 text-lg font-bold flex-grow shadow-lg hover:translate-y-[-2px] transition-transform">
+                            Reveal Next Line
+                        </button>
+                    </div>
+                    <div class="flex gap-3 w-full md:w-auto">
+                        <button id="reveal-show-all" class="secondary-action-button flex-1 py-3 px-5 font-semibold">Show All</button>
+                        <button id="reveal-hide-all" class="secondary-action-button flex-1 py-3 px-5 font-semibold">Hide All</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Type View -->
+            <div id="type-view" class="app-view">
+                <div class="flex justify-between items-center mb-6">
+                    <button id="type-prev-btn" class="nav-arrow-button shadow-sm hover:shadow-md">&larr;</button>
+                    <h2 id="type-passage-title" class="text-xl md:text-2xl font-bold text-center flex-grow px-4">Passage Title</h2>
+                    <button id="type-next-btn" class="nav-arrow-button shadow-sm hover:shadow-md">&rarr;</button>
+                </div>
+
+                <!-- Settings Bar -->
+                <div class="bg-[var(--color-card-bg)] p-4 rounded-xl mb-6 border border-[var(--color-border)] shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div class="flex items-center gap-3 w-full md:w-auto">
+                        <label class="text-xs font-bold text-[var(--color-text-secondary)] tracking-wider">WORDS GIVEN</label>
+                        <input type="range" id="type-words-slider" min="0" max="100" step="5" value="0" class="flex-grow md:w-32 cursor-pointer accent-[var(--color-primary)]">
+                        <span id="type-words-display" class="font-bold text-[var(--color-primary)] w-12 text-center">0%</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="text-xs font-bold text-[var(--color-text-secondary)] tracking-wider">HINTS</label>
+                        <button id="type-toggle-hints" class="secondary-action-button px-4 py-1.5 text-sm font-bold active transition-all">ON</button>
+                    </div>
+                </div>
+
+                <div class="relative w-full">
+                    <!-- Ghost text for underlines -->
+                    <div id="type-ghost-overlay" class="absolute top-0 left-0 w-full h-80 p-6 text-lg md:text-xl font-mono leading-relaxed whitespace-pre-wrap pointer-events-none opacity-40 z-0 overflow-hidden"></div>
+                    
+                    <textarea id="type-input-area" class="w-full h-80 p-6 text-lg md:text-xl font-mono leading-relaxed rounded-2xl z-10 relative bg-transparent border-2 border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none resize-none shadow-inner transition-colors" placeholder="Start typing here..."></textarea>
+                </div>
+
+                <div class="flex justify-between items-center mt-6">
+                    <button id="type-reset-button" class="secondary-action-button py-3 px-6 font-semibold">Reset</button>
+                    <button id="type-check-button" class="main-action-button py-3 px-10 font-bold shadow-md hover:shadow-lg">Check Answer</button>
+                </div>
+                
+                <div id="type-feedback" class="mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md animate-pop"></div>
+            </div>
+
+            <!-- Order View -->
+            <div id="order-view" class="app-view">
+                <div class="flex justify-between items-center mb-6">
+                    <button id="order-prev-btn" class="nav-arrow-button shadow-sm hover:shadow-md">&larr;</button>
+                    <h2 id="order-passage-title" class="text-xl md:text-2xl font-bold text-center flex-grow px-4">Passage Title</h2>
+                    <button id="order-next-btn" class="nav-arrow-button shadow-sm hover:shadow-md">&rarr;</button>
+                </div>
+
+                <p class="text-center text-[var(--color-text-secondary)] mb-6 font-medium">Drag the lines into the correct order.</p>
+
+                <div id="order-list" class="space-y-3 mb-8 min-h-[200px]">
+                    <!-- Draggable items injected here -->
+                </div>
+
+                <div class="flex justify-center gap-4">
+                    <button id="order-reset-btn" class="secondary-action-button py-3 px-6 font-semibold">Reset</button>
+                    <button id="order-check-btn" class="main-action-button py-3 px-10 font-bold shadow-md hover:shadow-lg">Check Order</button>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="text-center p-8 mt-12 border-t border-[var(--color-border)]">
+            <p class="mb-4 text-[var(--color-text-secondary)] font-medium">Created by Jacob Nedell</p>
+            <div class="flex justify-center flex-wrap gap-6 text-sm font-semibold">
+                <button id="about-button" class="footer-link hover:text-[var(--color-primary)] transition-colors">About</button>
+                <button id="keybinds-button" class="footer-link hover:text-[var(--color-primary)] transition-colors">Keybinds</button>
+                <a href="https://forms.gle/aorM6MFQvaTMf16j9" target="_blank" class="footer-link hover:text-[var(--color-primary)] transition-colors">Bug Report</a>
+                <a href="https://forms.gle/Z1xESserXb1NVVDv6" target="_blank" class="footer-link hover:text-[var(--color-primary)] transition-colors">Feature Request</a>
+            </div>
+        </footer>
         
-        div.querySelector('.delete-card-button').addEventListener('click', () => {
-             div.style.opacity = '0';
-             div.style.transform = 'scale(0.9)';
-             setTimeout(() => div.remove(), 200);
-        });
-        dom.passageEditorList.appendChild(div);
-    }
+        <div id="toast-notification" class="fixed bottom-6 right-6 py-4 px-6 rounded-xl shadow-2xl opacity-0 translate-y-4 transition-all duration-300 z-50 font-semibold border border-[var(--color-border)]">
+        </div>
 
-    function saveAndLoadSet() {
-        const title = dom.deckTitleInput.value.trim() || 'Untitled Set';
-        const rows = dom.passageEditorList.querySelectorAll('.passage-editor-row');
-        const newPassages = [];
-        
-        rows.forEach((row, index) => {
-            const pTitle = row.querySelector('.passage-title-input').value.trim();
-            const pContent = row.querySelector('.passage-content-input').value.trim();
-            if (pContent) {
-                newPassages.push({
-                    id: Date.now() + index,
-                    title: pTitle || `Passage ${index + 1}`,
-                    content: pContent
-                });
-            }
-        });
+    </div>
 
-        if (newPassages.length === 0) {
-            showToast("Please add at least one passage.");
-            return;
-        }
+    <!-- About Modal -->
+    <div id="about-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div id="about-modal-content" class="relative w-full max-w-md p-8 rounded-2xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] shadow-2xl transform scale-95 transition-transform duration-300">
+            <button id="about-modal-close" class="absolute top-4 right-5 text-2xl font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">&times;</button>
+            <h2 class="text-2xl font-bold mb-4">About Memorize</h2>
+            <p class="text-[var(--color-text-secondary)] leading-relaxed">
+                This tool is designed to help you memorize long-form content like speeches, poems, or documents. 
+                <br><br>
+                <strong class="text-[var(--color-text-primary)]">Reveal:</strong> Read line by line. Great for initial learning.<br>
+                <strong class="text-[var(--color-text-primary)]">Type:</strong> Test your recall by typing the passage.<br>
+                <strong class="text-[var(--color-text-primary)]">Order:</strong> Reconstruct the passage from scrambled lines.
+            </p>
+        </div>
+    </div>
 
-        app.currentSet = { title, passages: newPassages };
-        updateURLHash();
-        app.currentPassageIndex = 0;
-        setMode('reveal');
-        showToast("Set Saved Successfully!");
-    }
+    <!-- Keybinds Modal -->
+    <div id="keybinds-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div id="keybinds-modal-content" class="relative w-full max-w-lg p-8 rounded-2xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] shadow-2xl transform scale-95 transition-transform duration-300">
+            <button id="keybinds-modal-close" class="absolute top-4 right-5 text-2xl font-bold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">&times;</button>
+            <h2 class="text-2xl font-bold mb-6">Keyboard Shortcuts</h2>
+            <div class="space-y-6">
+                <div>
+                    <h3 class="text-lg font-bold mb-3 text-[var(--color-primary)]">Reveal Mode</h3>
+                    <ul class="keybind-list space-y-2">
+                        <li class="flex items-center gap-3"><kbd class="px-2 py-1 rounded bg-[var(--color-bg)] border border-[var(--color-border)] font-mono text-sm shadow-sm">Space</kbd> <span class="text-[var(--color-text-secondary)]">Reveal next line</span></li>
+                        <li class="flex items-center gap-3"><kbd class="px-2 py-1 rounded bg-[var(--color-bg)] border border-[var(--color-border)] font-mono text-sm shadow-sm">← / →</kbd> <span class="text-[var(--color-text-secondary)]">Change passage</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    // --- DRAG AND DROP HANDLERS ---
-    function handleDragStart(e) {
-        if (!e.target.classList.contains('draggable-item')) return;
-        app.draggedItem = e.target;
-        e.dataTransfer.effectAllowed = 'move';
-        // Delay adding the class so the drag image is the original element
-        requestAnimationFrame(() => e.target.classList.add('dragging'));
-    }
-    
-    function handleDragOver(e) {
-        e.preventDefault();
-        const container = e.currentTarget;
-        const afterElement = getDragAfterElement(container, e.clientY);
-        if (afterElement == null) {
-            container.appendChild(app.draggedItem);
-        } else {
-            container.insertBefore(app.draggedItem, afterElement);
-        }
-    }
-    
-    function handleDrop(e) {
-        e.preventDefault();
-        app.isCreateDirty = true;
-    }
+    <!-- Clear Confirmation Modal -->
+    <div id="clear-confirm-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="modal-backdrop fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div id="clear-confirm-modal-content" class="relative w-full max-w-sm p-8 rounded-2xl bg-[var(--color-bg-secondary)] border border-[var(--color-border)] shadow-2xl transform scale-95 transition-transform duration-300">
+            <h2 class="text-xl font-bold mb-4">Clear All?</h2>
+            <p class="mb-8 text-[var(--color-text-secondary)]">This will remove all passages from the editor. This action cannot be undone.</p>
+            <div class="flex justify-end space-x-3">
+                <button id="clear-cancel-button" class="secondary-action-button font-bold py-2 px-5 rounded-lg">Cancel</button>
+                <button id="clear-confirm-button" class="danger-action-button font-bold py-2 px-5 rounded-lg">Clear</button>
+            </div>
+        </div>
+    </div>
 
-    function handleDragEnd() {
-        if (app.draggedItem) app.draggedItem.classList.remove('dragging');
-        app.draggedItem = null;
-    }
-
-    function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.draggable-item:not(.dragging)')];
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
-
-    // --- UTILS ---
-    function showToast(msg) {
-        dom.toastNotification.textContent = msg;
-        dom.toastNotification.classList.add('show');
-        clearTimeout(app.toastTimeout);
-        app.toastTimeout = setTimeout(() => dom.toastNotification.classList.remove('show'), 3000);
-    }
-    
-    function base64UrlEncode(str) {
-        return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
-    
-    function base64UrlDecode(str) {
-        str = str.replace(/-/g, '+').replace(/_/g, '/');
-        while (str.length % 4) str += '=';
-        return decodeURIComponent(escape(atob(str)));
-    }
-
-    // Start
-    init();
-});
+    <script src="script.js"></script>
+</body>
+</html>
