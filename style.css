@@ -54,6 +54,15 @@ body {
     font-family: 'Inter', sans-serif;
     transition: background-color 0.3s ease, color 0.3s ease;
     -webkit-font-smoothing: antialiased;
+    /* Prevent selection of text globally for study helper */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Allow selection in inputs */
+input, textarea, [contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 /* --- Common UI --- */
@@ -240,23 +249,26 @@ body {
     backface-visibility: hidden;
 }
 
-.reveal-line.hidden {
+.reveal-line.hidden .reveal-hidden-part {
     /* The "Pristine" Blur Effect */
     filter: blur(8px);
     opacity: 0.3;
     user-select: none;
     transform: scale(0.99);
+    display: inline-block;
 }
 .reveal-line.hidden:hover {
-    opacity: 0.5; /* Hint that it's interactive */
+    opacity: 0.8; /* Hint that it's interactive */
 }
 
 .reveal-line.visible {
-    filter: blur(0);
     opacity: 1;
     cursor: text;
-    transform: scale(1);
     background-color: transparent;
+}
+.reveal-line.visible .reveal-hidden-part {
+    filter: blur(0);
+    opacity: 1;
 }
 
 /* --- Type Mode Styles --- */
