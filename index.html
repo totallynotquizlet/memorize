@@ -2,7 +2,7 @@
 <html lang="en"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Totally Not Quizlet Memorize</title>
+    <title>totallynotquizlet memorize</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,12 +20,12 @@
             <svg id="theme-icon-moon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
         </button>
 
-        <!-- Logo (Restored) -->
+        <!-- Logo -->
         <img src="favicon.png" alt="Site Logo" id="header-logo" class="absolute top-6 md:top-8 z-50">
         
         <!-- Header -->
-        <header class="mb-6 pt-16 md:pt-20"> <!-- Increased padding to clear logo -->
-            <h1 id="header-title" class="text-3xl md:text-4xl text-center mb-8 font-extrabold tracking-tight">Totally Not Quizlet Memorize</h1>
+        <header class="mb-6 pt-16 md:pt-20"> 
+            <h1 id="header-title" class="text-3xl md:text-4xl text-center mb-8 font-extrabold tracking-tight">totallynotquizlet memorize</h1>
             <nav class="flex justify-center flex-wrap gap-2 p-2">
                 <button data-mode="reveal" class="nav-button rounded-md">Reveal</button>
                 <button data-mode="type" class="nav-button rounded-md">Type</button>
@@ -54,12 +54,7 @@
                         <label class="create-label block mt-2 text-xs font-bold tracking-wider text-[var(--color-text-secondary)]">SET TITLE</label>
                     </div>
                     
-                    <div class="flex justify-between items-center">
-                        <div class="flex space-x-2">
-                            <button id="toggle-manual-button" class="create-toggle-button active">
-                                Manual Entry
-                            </button>
-                        </div>
+                    <div class="flex justify-end items-center">
                         <button id="clear-create-button" class="danger-action-button text-sm px-4 py-2 font-semibold">
                             Clear All
                         </button>
@@ -97,9 +92,14 @@
 
                 <!-- Controls -->
                 <div class="flex flex-col md:flex-row justify-center gap-4 sticky bottom-4 md:static z-20">
-                    <button id="reveal-line-button" class="main-action-button py-3 px-8 text-lg font-bold w-full md:w-auto shadow-lg hover:translate-y-[-2px] transition-transform">
-                        Reveal Next Line
-                    </button>
+                    <div class="flex gap-3 w-full md:w-auto">
+                        <button id="reveal-hint-button" class="secondary-action-button py-3 px-6 text-lg font-bold shadow-md hover:translate-y-[-2px] transition-transform flex-1 md:flex-none">
+                            Hint
+                        </button>
+                        <button id="reveal-line-button" class="main-action-button py-3 px-8 text-lg font-bold flex-grow shadow-lg hover:translate-y-[-2px] transition-transform">
+                            Reveal Next Line
+                        </button>
+                    </div>
                     <div class="flex gap-3 w-full md:w-auto">
                         <button id="reveal-show-all" class="secondary-action-button flex-1 py-3 px-5 font-semibold">Show All</button>
                         <button id="reveal-hide-all" class="secondary-action-button flex-1 py-3 px-5 font-semibold">Hide All</button>
@@ -118,9 +118,9 @@
                 <!-- Settings Bar -->
                 <div class="bg-[var(--color-card-bg)] p-4 rounded-xl mb-6 border border-[var(--color-border)] shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                     <div class="flex items-center gap-3 w-full md:w-auto">
-                        <label class="text-xs font-bold text-[var(--color-text-secondary)] tracking-wider">WORDS REQUIRED</label>
-                        <input type="range" id="type-words-slider" min="10" max="100" step="10" value="100" class="flex-grow md:w-32 cursor-pointer accent-[var(--color-primary)]">
-                        <span id="type-words-display" class="font-bold text-[var(--color-primary)] w-12 text-center">100%</span>
+                        <label class="text-xs font-bold text-[var(--color-text-secondary)] tracking-wider">WORDS GIVEN</label>
+                        <input type="range" id="type-words-slider" min="0" max="100" step="5" value="0" class="flex-grow md:w-32 cursor-pointer accent-[var(--color-primary)]">
+                        <span id="type-words-display" class="font-bold text-[var(--color-primary)] w-12 text-center">0%</span>
                     </div>
                     <div class="flex items-center gap-3">
                         <label class="text-xs font-bold text-[var(--color-text-secondary)] tracking-wider">HINTS</label>
