@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Totally Not Quizlet Memorize</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 md:p-8 min-h-screen relative flex flex-col">
+        
+        <!-- Theme Toggle -->
+        <button id="theme-toggle-button" class="absolute top-6 right-6 md:top-8 md:right-10 z-50 p-2 rounded-full transition-all duration-300">
+            <span id="theme-icon-sun" class="text-3xl" style="line-height: 1;">☼</span>
+            <svg id="theme-icon-moon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
+
+        <!-- Header -->
+        <header class="mb-6 pt-12">
+            <h1 id="header-title" class="text-3xl text-center mb-6">Totally Not Quizlet Memorize</h1>
+            <nav class="flex justify-center p-2 space-x-1 md:space-x-2">
+                <button data-mode="reveal" class="nav-button flex-1 rounded-md">Reveal</button>
+                <button data-mode="type" class="nav-button flex-1 rounded-md">Type</button>
+                <button data-mode="order" class="nav-button flex-1 rounded-md">Order</button>
+                <button data-mode="create" class="nav-button flex-1 rounded-md">Create</button>
+                <button id="share-deck-button" class="flex-1 rounded-md hidden">Share Set</button>
+            </nav>
+        </header>
+
+        <main id="main-content" class="flex-grow">
+
+            <!-- Empty View -->
+            <div id="empty-deck-view" class="app-view text-center p-8 md:p-12 rounded-lg">
+                <h2 class="text-2xl font-semibold mb-4">No passages found!</h2>
+                <p class="mb-6">Create a new set of passages to start memorizing.</p>
+                <button data-mode="create" class="nav-button main-action-button font-medium py-3 px-6 rounded-lg">
+                    Create Set
+                </button>
+            </div>
+
+            <!-- Create View -->
+            <div id="create-view" class="app-view">
+                <div id="create-form-container" class="space-y-6">
+                    <div>
+                        <input type="text" id="deck-title-input" class="w-full" placeholder="Set Title (e.g. 'Famous Speeches')">
+                        <label class="create-label">SET TITLE</label>
+                    </div>
+                    
+                    <div class="flex justify-between items-center">
+                        <div class="flex space-x-2">
+                            <button id="toggle-manual-button" class="create-toggle-button active">
+                                Manual Entry
+                            </button>
+                        </div>
+                        <button id="clear-create-button" class="danger-action-button text-sm px-4 py-2">
+                            Clear All
+                        </button>
+                    </div>
+
+                    <div id="manual-input-section" class="space-y-4">
+                        <div id="passage-editor-list" class="space-y-6">
+                            <!-- JS will inject passage editors here -->
+                        </div>
+                        <button id="add-passage-button" class="w-full">
+                            + ADD PASSAGE
+                        </button>
+                    </div>
+
+                    <button id="parse-deck-button" class="main-action-button mt-4 w-full font-medium py-3 px-6 rounded-lg">
+                        Save & Create
+                    </button>
+                </div>
+            </div>
+
+            <!-- Reveal View (Main Mode) -->
+            <div id="reveal-view" class="app-view">
+                <!-- Navigation for multiple passages -->
+                <div class="flex justify-between items-center mb-4">
+                    <button id="prev-passage-btn" class="nav-arrow-button">&larr;</button>
+                    <h2 id="reveal-passage-title" class="text-xl font-bold text-center flex-grow">Passage Title</h2>
+                    <button id="next-passage-btn" class="nav-arrow-button">&rarr;</button>
+                </div>
+
+                <div id="reveal-container" class="p-6 md:p-8 rounded-2xl min-h-[400px] mb-6 relative">
+                    <div id="reveal-content-area" class="space-y-4 text-lg md:text-xl leading-relaxed">
+                        <!-- Lines injected here -->
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex flex-col md:flex-row justify-center gap-4">
+                    <button id="reveal-line-button" class="main-action-button py-3 px-8 text-lg w-full md:w-auto">
+                        Reveal Next Line
+                    </button>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <button id="reveal-show-all" class="secondary-action-button flex-1 py-3 px-4">Show All</button>
+                        <button id="reveal-hide-all" class="secondary-action-button flex-1 py-3 px-4">Hide All</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Type View -->
+            <div id="type-view" class="app-view">
+                <div class="flex justify-between items-center mb-4">
+                    <button id="type-prev-btn" class="nav-arrow-button">&larr;</button>
+                    <h2 id="type-passage-title" class="text-xl font-bold text-center flex-grow">Passage Title</h2>
+                    <button id="type-next-btn" class="nav-arrow-button">&rarr;</button>
+                </div>
+
+                <!-- Settings Bar -->
+                <div class="bg-[var(--color-bg-secondary)] p-4 rounded-lg mb-4 border border-[var(--color-border)] flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-bold text-[var(--color-text-secondary)]">WORDS REQUIRED:</label>
+                        <input type="range" id="type-words-slider" min="10" max="100" step="10" value="100" class="cursor-pointer">
+                        <span id="type-words-display" class="font-bold w-12 text-center">100%</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-bold text-[var(--color-text-secondary)]">SHOW UNDERLINES:</label>
+                        <button id="type-toggle-hints" class="secondary-action-button px-3 py-1 text-sm active">ON</button>
+                    </div>
+                </div>
+
+                <div class="relative w-full">
+                    <!-- Ghost text for underlines -->
+                    <div id="type-ghost-overlay" class="absolute top-0 left-0 w-full h-64 p-4 text-lg font-mono leading-relaxed whitespace-pre-wrap pointer-events-none opacity-50 z-0"></div>
+                    
+                    <textarea id="type-input-area" class="w-full h-64 p-4 text-lg font-mono leading-relaxed rounded-xl z-10 relative bg-transparent border-2 border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none resize-none" placeholder="Start typing here..."></textarea>
+                </div>
+
+                <div class="flex justify-between items-center mt-4">
+                    <button id="type-reset-button" class="secondary-action-button py-2 px-6">Reset</button>
+                    <button id="type-check-button" class="main-action-button py-2 px-8">Check</button>
+                </div>
+                
+                <div id="type-feedback" class="mt-4 hidden p-4 rounded-lg text-center font-bold"></div>
+            </div>
+
+            <!-- Order View -->
+            <div id="order-view" class="app-view">
+                <div class="flex justify-between items-center mb-4">
+                    <button id="order-prev-btn" class="nav-arrow-button">&larr;</button>
+                    <h2 id="order-passage-title" class="text-xl font-bold text-center flex-grow">Passage Title</h2>
+                    <button id="order-next-btn" class="nav-arrow-button">&rarr;</button>
+                </div>
+
+                <p class="text-center text-[var(--color-text-secondary)] mb-4">Drag the lines into the correct order.</p>
+
+                <div id="order-list" class="space-y-2 mb-6 min-h-[200px]">
+                    <!-- Draggable items injected here -->
+                </div>
+
+                <div class="flex justify-center gap-4">
+                    <button id="order-reset-btn" class="secondary-action-button py-2 px-6">Reset</button>
+                    <button id="order-check-btn" class="main-action-button py-2 px-8">Check Order</button>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="text-center p-6 mt-8 border-t border-[var(--color-border)]">
+            <p class="mb-2 text-[var(--color-text-secondary)]">Totally Not Quizlet Memorize</p>
+            <div class="flex justify-center space-x-4">
+                <button id="about-button" class="footer-link underline cursor-pointer">About</button>
+            </div>
+        </footer>
+        
+        <div id="toast-notification" class="fixed bottom-6 right-6 py-3 px-5 rounded-lg shadow-xl opacity-0 translate-y-4 transition-all duration-300 z-50">
+        </div>
+
+    </div>
+
+    <!-- About Modal -->
+    <div id="about-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div id="about-modal-content" class="relative w-full max-w-md p-6 md:p-8 rounded-2xl">
+            <button id="about-modal-close" class="absolute top-4 right-5 text-3xl font-bold">&times;</button>
+            <h2 class="text-2xl font-bold mb-4">About Memorize</h2>
+            <p>
+                This tool is designed to help you memorize long-form content like speeches, poems, or documents. 
+                <br><br>
+                <strong>Reveal:</strong> Read line by line. Great for initial learning.<br>
+                <strong>Type:</strong> Test your recall by typing the passage.<br>
+                <strong>Order:</strong> Reconstruct the passage from scrambled lines.
+            </p>
+        </div>
+    </div>
+
+    <!-- Clear Confirmation Modal -->
+    <div id="clear-confirm-modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div id="clear-confirm-modal-content" class="relative w-full max-w-sm p-6 md:p-8 rounded-2xl">
+            <h2 class="text-xl font-bold mb-4">Clear All?</h2>
+            <p class="mb-6">This will remove all passages from the editor.</p>
+            <div class="flex justify-end space-x-3">
+                <button id="clear-cancel-button" class="secondary-action-button font-medium py-2 px-5 rounded-lg">Cancel</button>
+                <button id="clear-confirm-button" class="danger-action-button font-medium py-2 px-5 rounded-lg">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

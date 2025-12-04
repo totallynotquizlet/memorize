@@ -1,0 +1,218 @@
+/* --- CSS Variables (Color Palette) --- */
+html {
+    overflow-y: scroll;
+}
+
+:root {
+    --color-primary: #4f6dff;
+    --color-primary-light: #2a3b7d;
+    --color-primary-dark: #3a5bf0;
+    --color-secondary: #ffcd1f; 
+    
+    --color-bg: #0a092b; 
+    --color-bg-secondary: #1a2342; 
+    --color-card-bg: #232e54; 
+    --color-text-primary: #ffffff; 
+    --color-text-secondary: #f0f3ff; 
+    --color-border: #3a497c;
+    
+    --color-correct: #38c172;
+    --color-incorrect: #e3342f;
+
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.2);
+    
+    --border-radius-button: 12px;
+}
+
+body.light-mode {
+    --color-primary: #4257b2;
+    --color-primary-light: #f0f3ff;
+    --color-primary-dark: #3a4b99;
+    --color-secondary: #f2b000;
+    
+    --color-bg: #f6f7fb;
+    --color-bg-secondary: #ffffff;
+    --color-card-bg: #ffffff;
+    --color-text-primary: #303545;
+    --color-text-secondary: #586380;
+    --color-border: #e4e7eb;
+    
+    --color-correct: #28a745;
+    --color-incorrect: #dc3545;
+}
+
+body {
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: 'Inter', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* --- Common UI --- */
+.app-view { display: none; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Buttons */
+.nav-button {
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-weight: 700;
+    padding: 1rem 1.5rem;
+    transition: all 0.2s ease;
+}
+.nav-button.active {
+    color: var(--color-primary);
+    border-bottom: 3px solid var(--color-primary);
+}
+
+.main-action-button {
+    background-color: var(--color-primary);
+    color: white;
+    border-radius: var(--border-radius-button);
+    transition: background-color 0.2s ease;
+}
+.main-action-button:hover { background-color: var(--color-primary-dark); }
+
+.secondary-action-button {
+    background-color: var(--color-card-bg);
+    color: var(--color-text-secondary);
+    border: 2px solid var(--color-border);
+    border-radius: var(--border-radius-button);
+    font-weight: 600;
+}
+.secondary-action-button.active {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background-color: var(--color-bg-secondary);
+}
+
+.nav-arrow-button {
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    color: var(--color-text-primary);
+    font-size: 1.2rem;
+    transition: all 0.2s;
+}
+.nav-arrow-button:hover {
+    border-color: var(--color-primary);
+    background: var(--color-bg-secondary);
+}
+
+/* --- Create Mode --- */
+#deck-title-input {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--color-border);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    padding: 0.5rem;
+}
+#deck-title-input:focus { outline: none; border-color: var(--color-primary); }
+
+.passage-editor-row {
+    background-color: var(--color-card-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-button);
+    padding: 1rem;
+    cursor: grab;
+}
+.passage-editor-row.dragging { opacity: 0.5; border: 2px dashed var(--color-primary); }
+
+/* --- Reveal Mode Styles --- */
+#reveal-container {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+}
+
+.reveal-line {
+    transition: all 0.4s ease;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.reveal-line.hidden {
+    color: transparent;
+    text-shadow: 0 0 12px var(--color-text-primary); /* Blur effect */
+    opacity: 0.5;
+    background-color: rgba(128, 128, 128, 0.1);
+    user-select: none;
+}
+
+.reveal-line.visible {
+    color: var(--color-text-primary);
+    text-shadow: none;
+    opacity: 1;
+    background-color: transparent;
+}
+
+/* --- Type Mode Styles --- */
+#type-input-area {
+    background: var(--color-bg-secondary); /* Ensure it's opaque relative to overlay */
+    color: var(--color-text-primary);
+    caret-color: var(--color-primary);
+}
+#type-ghost-overlay {
+    color: var(--color-text-secondary);
+    letter-spacing: normal; /* Match textarea defaults */
+}
+
+/* --- Order Mode Styles --- */
+.order-item {
+    background-color: var(--color-card-bg);
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: grab;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+.order-item:hover {
+    border-color: var(--color-primary);
+    transform: translateX(4px);
+}
+.order-item.dragging {
+    opacity: 0.5;
+    background-color: var(--color-bg);
+}
+.order-item.correct {
+    border-color: var(--color-correct);
+    background-color: rgba(56, 193, 114, 0.1);
+}
+.order-item.incorrect {
+    border-color: var(--color-incorrect);
+    animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* --- Toast --- */
+#toast-notification {
+    background-color: var(--color-card-bg);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+#toast-notification.show { opacity: 1; transform: translateY(0); }
+
+/* --- Modals --- */
+#about-modal-overlay, #clear-confirm-modal-overlay {
+    visibility: hidden; opacity: 0; transition: all 0.3s;
+}
+#about-modal-overlay.visible, #clear-confirm-modal-overlay.visible {
+    visibility: visible; opacity: 1;
+}
+#about-modal-content, #clear-confirm-modal-content {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+}
+.modal-backdrop { background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
