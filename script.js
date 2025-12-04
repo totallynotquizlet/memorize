@@ -88,6 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
         aboutModalClose: document.getElementById('about-modal-close'),
         aboutModalBackdrop: document.querySelector('#about-modal-overlay .modal-backdrop'),
 
+        // Keybinds Modal
+        keybindsButton: document.getElementById('keybinds-button'),
+        keybindsModalOverlay: document.getElementById('keybinds-modal-overlay'),
+        keybindsModalClose: document.getElementById('keybinds-modal-close'),
+        keybindsModalBackdrop: document.querySelector('#keybinds-modal-overlay .modal-backdrop'),
+
         clearConfirmModalOverlay: document.getElementById('clear-confirm-modal-overlay'),
         clearConfirmButton: document.getElementById('clear-confirm-button'),
         clearCancelButton: document.getElementById('clear-cancel-button'),
@@ -225,6 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.typeInputArea.addEventListener('scroll', () => {
             dom.typeGhostOverlay.scrollTop = dom.typeInputArea.scrollTop;
         });
+        // Also sync on input to handle rapid changes
+        dom.typeInputArea.addEventListener('input', () => {
+            dom.typeGhostOverlay.scrollTop = dom.typeInputArea.scrollTop;
+        });
 
         // Order View
         dom.orderCheckBtn.addEventListener('click', checkOrder);
@@ -245,6 +255,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.aboutModalClose.addEventListener('click', () => dom.aboutModalOverlay.classList.remove('visible'));
         dom.aboutModalBackdrop.addEventListener('click', () => dom.aboutModalOverlay.classList.remove('visible'));
         
+        dom.keybindsButton.addEventListener('click', () => dom.keybindsModalOverlay.classList.add('visible'));
+        dom.keybindsModalClose.addEventListener('click', () => dom.keybindsModalOverlay.classList.remove('visible'));
+        dom.keybindsModalBackdrop.addEventListener('click', () => dom.keybindsModalOverlay.classList.remove('visible'));
+
         dom.clearCancelButton.addEventListener('click', () => dom.clearConfirmModalOverlay.classList.remove('visible'));
         dom.clearConfirmButton.addEventListener('click', () => {
             dom.deckTitleInput.value = '';
@@ -252,6 +266,23 @@ document.addEventListener('DOMContentLoaded', () => {
             createPassageRow(); // Add one empty
             dom.clearConfirmModalOverlay.classList.remove('visible');
             app.isCreateDirty = false;
+            showToast("Editor Cleared.");
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (app.currentMode === 'reveal') {
+                    revealNextLine();
+                }
+            } else if (e.code === 'ArrowRight') {
+                changePassage(1);
+            } else if (e.code === 'ArrowLeft') {
+                changePassage(-1);
+            }
         });
     }
 
@@ -295,28 +326,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function revealNextLine() {
         const lines = dom.revealContentArea.querySelectorAll('.reveal-line');
-        if (app.revealIndex < lines.length - 1) {
-            app.revealIndex++;
-            const line = lines[app.revealIndex];
+        // Find first hidden line
+        let nextHiddenIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].classList.contains('hidden')) {
+                nextHiddenIndex = i;
+                break;
+            }
+        }
+
+        if (nextHiddenIndex !== -1) {
+            const line = lines[nextHiddenIndex];
             line.classList.remove('hidden');
             line.classList.add('visible');
-            line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Smooth scroll to keep context
+            if (nextHiddenIndex > 2) { // Only scroll if we are a bit down
+                 line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
     }
 
     function setRevealState(state) {
         const lines = dom.revealContentArea.querySelectorAll('.reveal-line');
-        lines.forEach(line => {
-            if (state === 'all') {
-                line.classList.remove('hidden');
-                line.classList.add('visible');
-                app.revealIndex = lines.length - 1;
-            } else {
+        // Stagger the reveal for a pristine effect if showing all
+        if (state === 'all') {
+            lines.forEach((line, i) => {
+                setTimeout(() => {
+                    line.classList.remove('hidden');
+                    line.classList.add('visible');
+                }, i * 30); // 30ms stagger
+            });
+        } else {
+            lines.forEach(line => {
                 line.classList.remove('visible');
                 line.classList.add('hidden');
-                app.revealIndex = -1;
-            }
-        });
+            });
+        }
     }
 
     // --- TYPE MODE ---
@@ -324,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const passage = app.currentSet.passages[app.currentPassageIndex];
         dom.typePassageTitle.textContent = passage.title || "Untitled Passage";
         dom.typeInputArea.value = '';
-        dom.typeFeedback.className = 'mt-4 hidden p-4 rounded-lg text-center font-bold';
+        dom.typeFeedback.className = 'mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md';
         dom.typeFeedback.textContent = '';
         
         updateTypeGhost();
@@ -355,16 +400,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const userText = dom.typeInputArea.value.trim();
         const targetText = passage.content.trim();
         
-        // Simple logic: Calculate Levenshtein distance roughly or word match
-        // Let's use word matching for the "percentage" logic.
+        // Normalize whitespace for comparison
+        const normalize = str => str.replace(/\s+/g, ' ').toLowerCase();
         
-        const targetWords = targetText.split(/\s+/);
-        const userWords = userText.split(/\s+/);
+        const targetWords = normalize(targetText).split(' ');
+        const userWords = normalize(userText).split(' ');
         
         let correctCount = 0;
         // Check word by word (simple version)
         userWords.forEach((word, i) => {
-            if (i < targetWords.length && word.toLowerCase() === targetWords[i].toLowerCase()) {
+            if (i < targetWords.length && word === targetWords[i]) {
                 correctCount++;
             }
         });
@@ -373,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const requiredWords = Math.ceil(totalWords * (app.typeSettings.wordsPercentage / 100));
         
         dom.typeFeedback.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
+        dom.typeFeedback.classList.add('animate-pop'); // Trigger animation
 
         if (correctCount >= requiredWords) {
             dom.typeFeedback.textContent = `Success! You matched ${correctCount}/${totalWords} words (Target: ${requiredWords}).`;
@@ -381,6 +427,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.typeFeedback.textContent = `Keep going! ${correctCount}/${totalWords} words correct. Need ${requiredWords} to pass.`;
             dom.typeFeedback.classList.add('bg-red-100', 'text-red-800');
         }
+        
+        // Remove animation class so it can trigger again
+        setTimeout(() => dom.typeFeedback.classList.remove('animate-pop'), 500);
     }
 
     // --- ORDER MODE ---
@@ -392,9 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Split by lines
         let lines = passage.content.split('\n').filter(l => l.trim() !== '');
         
-        // Store correct order logic?
-        // We will store the original index in dataset.
-        
+        // Store original index in dataset.
         let items = lines.map((text, index) => ({ text, originalIndex: index }));
         
         // Shuffle
@@ -416,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function checkOrder() {
         const items = dom.orderList.querySelectorAll('.order-item');
         let allCorrect = true;
+        let firstIncorrect = null;
         
         items.forEach((item, index) => {
             if (parseInt(item.dataset.originalIndex) === index) {
@@ -425,13 +473,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.classList.add('incorrect');
                 item.classList.remove('correct');
                 allCorrect = false;
+                if (!firstIncorrect) firstIncorrect = item;
             }
         });
         
         if (allCorrect) {
-            showToast("Perfect Order!");
+            showToast("Perfect Order! well done.");
         } else {
-            showToast("Not quite right yet.");
+            showToast("Not quite right yet. Keep trying!");
+            // Shake effect handled by CSS class
+            setTimeout(() => {
+                items.forEach(i => i.classList.remove('incorrect', 'correct'));
+            }, 2000);
         }
     }
 
@@ -449,18 +502,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createPassageRow(title = '', content = '') {
         const div = document.createElement('div');
-        div.className = 'passage-editor-row draggable-item'; // Reuse styling logic
+        div.className = 'passage-editor-row draggable-item'; 
         div.draggable = true;
         div.innerHTML = `
-            <div class="flex justify-between items-center mb-2">
-                <span class="font-bold text-[var(--color-text-secondary)]">PASSAGE</span>
-                <button class="delete-card-button text-red-400 hover:text-red-600">&times;</button>
+            <div class="flex justify-between items-center mb-4">
+                <span class="font-bold text-[var(--color-text-secondary)] text-sm tracking-wider">PASSAGE</span>
+                <button class="delete-card-button text-[var(--color-incorrect)] hover:text-red-400 font-bold transition-colors">&times;</button>
             </div>
-            <input type="text" class="passage-title-input w-full bg-transparent border-b border-[var(--color-border)] mb-2 p-2 focus:border-[var(--color-primary)] outline-none" placeholder="Passage Title" value="${title}">
-            <textarea class="passage-content-input w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded p-2 h-32 focus:border-[var(--color-primary)] outline-none resize-y" placeholder="Paste text here...">${content}</textarea>
+            <input type="text" class="passage-title-input w-full bg-transparent border-b-2 border-[var(--color-border)] mb-4 p-2 font-bold text-lg focus:border-[var(--color-primary)] outline-none transition-colors" placeholder="Passage Title" value="${title}">
+            <textarea class="passage-content-input w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl p-4 h-40 focus:border-[var(--color-primary)] outline-none resize-y transition-colors leading-relaxed" placeholder="Paste text here...">${content}</textarea>
         `;
         
-        div.querySelector('.delete-card-button').addEventListener('click', () => div.remove());
+        div.querySelector('.delete-card-button').addEventListener('click', () => {
+             div.style.opacity = '0';
+             div.style.transform = 'scale(0.9)';
+             setTimeout(() => div.remove(), 200);
+        });
         dom.passageEditorList.appendChild(div);
     }
 
@@ -490,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateURLHash();
         app.currentPassageIndex = 0;
         setMode('reveal');
-        showToast("Set Saved!");
+        showToast("Set Saved Successfully!");
     }
 
     // --- DRAG AND DROP HANDLERS ---
@@ -498,7 +555,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.classList.contains('draggable-item')) return;
         app.draggedItem = e.target;
         e.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => e.target.classList.add('dragging'), 0);
+        // Delay adding the class so the drag image is the original element
+        requestAnimationFrame(() => e.target.classList.add('dragging'));
     }
     
     function handleDragOver(e) {
