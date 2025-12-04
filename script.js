@@ -16,9 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         typeSettings: {
             wordsGivenPercentage: 0,
             showUnderlines: true,
-            givenIndices: new Set(),
-            ignoreCase: true,
-            ignorePunctuation: true
+            givenIndices: new Set()
         },
 
         // Order Mode State
@@ -73,9 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
         typeFeedback: document.getElementById('type-feedback'),
         typePrevBtn: document.getElementById('type-prev-btn'),
         typeNextBtn: document.getElementById('type-next-btn'),
-        // New Type Settings
-        typeIgnoreCase: document.getElementById('type-ignore-case'),
-        typeIgnorePunctuation: document.getElementById('type-ignore-punctuation'),
 
         // Order View
         orderView: document.getElementById('order-view'),
@@ -253,11 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Regenerate hints when slider moves
             initTypeMode(false); 
         });
-        
-        // New Settings Listeners
-        dom.typeIgnoreCase.addEventListener('change', (e) => app.typeSettings.ignoreCase = e.target.checked);
-        dom.typeIgnorePunctuation.addEventListener('change', (e) => app.typeSettings.ignorePunctuation = e.target.checked);
-
         dom.typeCheckButton.addEventListener('click', checkTypeAnswer);
         dom.typeResetButton.addEventListener('click', () => initTypeMode(true));
         dom.typePrevBtn.addEventListener('click', () => changePassage(-1));
@@ -438,13 +428,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const passage = app.currentSet.passages[app.currentPassageIndex];
         dom.typePassageTitle.textContent = passage.title || "Untitled Passage";
         
-        // Sync toggles with state
-        dom.typeIgnoreCase.checked = app.typeSettings.ignoreCase;
-        dom.typeIgnorePunctuation.checked = app.typeSettings.ignorePunctuation;
-
         if (resetInput) {
             dom.typeInputArea.value = '';
-            dom.typeFeedback.className = 'mt-6 hidden p-8 rounded-xl text-lg md:text-xl font-medium leading-relaxed shadow-md border border-[var(--color-border)] bg-[var(--color-bg-secondary)] animate-pop whitespace-pre-wrap';
+            dom.typeFeedback.className = 'mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md';
             dom.typeFeedback.innerHTML = '';
         }
         
@@ -452,6 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const normalize = str => str.replace(/\n/g, ' \n ').split(' ').filter(x => x);
         const words = normalize(passage.content);
         
+        // Fix for freeze bug: Calculate percentage based on actual words, not total tokens (which includes newlines)
         const validIndices = [];
         words.forEach((word, index) => {
             if (word.trim() !== '') {
@@ -492,10 +479,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Logic: 
+        // 1. Split original text into tokens (preserving newlines/spaces mostly for visual matching)
+        // 2. If index is in givenIndices, show the word.
+        // 3. Else, replace alphanumeric chars with underscore.
+        
+        // A simple split strategy that handles newlines
         let currentWordIndex = 0;
         const ghostText = passage.content.replace(/[\w\u00C0-\u00FF]+|\n/g, (match) => {
             if (match === '\n') return '\n';
             
+            // Check if this word should be given
             const isGiven = app.typeSettings.givenIndices.has(currentWordIndex);
             currentWordIndex++;
 
@@ -509,152 +503,74 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.typeGhostOverlay.textContent = ghostText;
     }
 
-    // --- TYPE MODE CHECKING LOGIC ---
-    function tokenizeText(text) {
-        // Robust tokenization: capture words, punctuation, spaces, and newlines as separate tokens
-        // This regex splits by spaces/newlines but keeps them as delimiters if needed, or we process manually.
-        // Better: Replace newlines with a special space token or handle them in the loop.
-        // Let's split by regex that groups words and non-words.
-        
-        // We will split into "tokens" that we want to color.
-        // Usually splitting by whitespace is best for "words", but preserving punctuation is needed for display.
-        // If we split by whitespace: "Hello," becomes "Hello,". 
-        return text.split(/(\s+)/).filter(t => t.length > 0);
-    }
-
-    function cleanWord(word) {
-        let w = word;
-        if (app.typeSettings.ignoreCase) {
-            w = w.toLowerCase();
-        }
-        if (app.typeSettings.ignorePunctuation) {
-            // Remove all punctuation from start/end and internal standard punctuation
-            w = w.replace(/[.,/#!$%^&*;:{}=\-_`~()?"']/g, "");
-        }
-        return w.trim();
-    }
-
     function checkTypeAnswer() {
         const passage = app.currentSet.passages[app.currentPassageIndex];
-        const userText = dom.typeInputArea.value; // Keep raw value to preserve structure
+        const userText = dom.typeInputArea.value; // Keep raw value including newlines
         const targetText = passage.content;
         
-        const userTokens = tokenizeText(userText);
-        const targetTokens = tokenizeText(targetText);
-
-        // Filter tokens to get only the "meaningful" words for comparison logic
-        // But we need to map back to original indices for display.
-        // Strategy: 
-        // 1. Build a list of { text, isWhitespace, cleanText } for both.
-        // 2. Perform comparison on the non-whitespace cleanTexts.
-        // 3. Mark the original tokens with status (correct, incorrect, misplaced).
-
-        const mapTokens = (tokens) => tokens.map(t => ({
-            text: t,
-            isWhitespace: /^\s+$/.test(t),
-            cleanText: cleanWord(t),
-            status: 'neutral' // correct, incorrect, misplaced, missing
-        }));
-
-        const uObjs = mapTokens(userTokens);
-        const tObjs = mapTokens(targetTokens);
-
-        // Filter out whitespace for the logic comparison
-        const uWords = uObjs.filter(o => !o.isWhitespace && o.cleanText !== '');
-        const tWords = tObjs.filter(o => !o.isWhitespace && o.cleanText !== '');
-
-        // --- CORE COMPARISON LOGIC (Green / Red / Yellow) ---
+        // 1. Tokenize both strings into "words" for alignment
+        // We split by whitespace but keep the logic simple: verify word by word index.
+        const targetWords = targetText.split(/\s+/).filter(w => w.length > 0);
+        const userWords = userText.split(/\s+/).filter(w => w.length > 0);
         
-        // 1. Frequency Map of Target Words (for Yellow logic)
-        const targetFreq = {};
-        tWords.forEach(w => {
-            targetFreq[w.cleanText] = (targetFreq[w.cleanText] || 0) + 1;
-        });
+        let feedbackHTML = '';
+        let correctCount = 0;
 
-        // 2. First Pass: Identify GREENS (Exact matches at index)
-        // We iterate based on the user's length, or target length?
-        // Usually type mode checks user input stream against target stream.
-        
-        uWords.forEach((u, i) => {
-            if (i < tWords.length) {
-                if (u.cleanText === tWords[i].cleanText) {
-                    u.status = 'correct';
-                    targetFreq[u.cleanText]--; // Consume one instance
-                }
+        // Loop through target words to build feedback
+        for (let i = 0; i < targetWords.length; i++) {
+            const targetWord = targetWords[i];
+            const userWord = userWords[i] || ''; // Might be undefined if user typed fewer words
+            
+            // Case insensitive comparison for the "Whole Word" check
+            if (targetWord.toLowerCase() === userWord.toLowerCase()) {
+                // Correct word
+                correctCount++;
+                feedbackHTML += `<span class="type-diff-correct">${targetWord}</span> `;
             } else {
-                // User typed more words than target has
-                u.status = 'incorrect'; 
-            }
-        });
-
-        // 3. Second Pass: Identify YELLOWS and REDS
-        uWords.forEach((u, i) => {
-            if (u.status === 'correct') return; // Already green
-            if (u.status === 'incorrect' && i >= tWords.length) return; // Already red (extra word)
-
-            // Check if word exists elsewhere in the remaining frequency
-            if (targetFreq[u.cleanText] > 0) {
-                u.status = 'misplaced';
-                targetFreq[u.cleanText]--; // Consume one instance
-            } else {
-                u.status = 'incorrect';
-            }
-        });
-
-        // --- RENDER FEEDBACK ---
-        let html = '';
-        
-        // Reconstruct User Input with Colors
-        uObjs.forEach(token => {
-            if (token.isWhitespace) {
-                html += token.text; // Preserve spaces/newlines
-            } else {
-                // It's a word, check status
-                // If cleanText was empty (e.g. strict punctuation removal left nothing), just show it.
-                if (token.cleanText === '') {
-                     html += `<span class="feedback-token">${token.text}</span>`;
-                } else {
-                    let className = 'val-neutral';
-                    if (token.status === 'correct') className = 'val-correct';
-                    if (token.status === 'incorrect') className = 'val-incorrect';
-                    if (token.status === 'misplaced') className = 'val-misplaced';
+                // Incorrect word - Grouped, but letter-by-letter diff
+                feedbackHTML += '<span class="type-diff-word-group">';
+                
+                // Compare letter by letter
+                const maxLength = Math.max(targetWord.length, userWord.length);
+                
+                for (let j = 0; j < maxLength; j++) {
+                    const tChar = targetWord[j] || '';
+                    const uChar = userWord[j] || '';
                     
-                    html += `<span class="feedback-token ${className}">${token.text}</span>`;
+                    if (tChar.toLowerCase() === uChar.toLowerCase()) {
+                        feedbackHTML += `<span class="type-diff-correct">${tChar}</span>`;
+                    } else if (uChar) {
+                        // User typed wrong char
+                        feedbackHTML += `<span class="type-diff-incorrect">${uChar}</span>`;
+                    } else {
+                         // User missed a char (underscore placeholder)
+                         feedbackHTML += `<span class="type-diff-missing">_</span>`;
+                    }
                 }
+                feedbackHTML += '</span> ';
             }
-        });
-
-        // Check for Missing Words (Target has more words than User typed)
-        if (tWords.length > uWords.length) {
-            const missingCount = tWords.length - uWords.length;
-            
-            // Collect the actual missing words for display
-            const missingWordsText = tWords.slice(uWords.length)
-                                          .map(w => w.text)
-                                          .join(' ');
-            
-            // Truncate if too long to avoid cluttering, or show all? 
-            // Let's show the first few missing words + count.
-            
-            html += `\n\n<div class="mt-4 pt-4 border-t border-[var(--color-border)] text-sm font-normal">`;
-            html += `<span class="font-bold text-[var(--color-incorrect)]">Result:</span> You missed ${missingCount} word(s) at the end.`;
-            html += `<div class="mt-2 p-3 rounded bg-[var(--color-card-bg)] text-[var(--color-text-secondary)] font-mono text-sm opacity-80">${missingWordsText}</div>`;
-            html += `</div>`;
-        } else if (uWords.length === tWords.length && uWords.every(w => w.status === 'correct')) {
-            html += `\n\n<div class="mt-4 pt-4 border-t border-[var(--color-border)] text-center">`;
-            html += `<span class="font-bold text-[var(--color-correct)] text-xl">🎉 Perfect Match!</span>`;
-            html += `</div>`;
         }
 
-        dom.typeFeedback.innerHTML = html;
-        dom.typeFeedback.classList.remove('hidden');
-        dom.typeFeedback.classList.add('animate-pop');
+        const totalWords = targetWords.length;
+
+        dom.typeFeedback.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
+        dom.typeFeedback.classList.add('animate-pop'); // Trigger animation
+
+        // Build the header status line
+        let statusLine = '';
+        if (correctCount === totalWords) {
+            dom.typeFeedback.classList.add('bg-green-100', 'text-green-800');
+            statusLine = `<div class="mb-4 text-xl">🎉 Perfect! ${correctCount}/${totalWords} words.</div>`;
+        } else {
+            dom.typeFeedback.classList.add('bg-red-100', 'text-red-800');
+            statusLine = `<div class="mb-4 text-xl">Keep trying! ${correctCount}/${totalWords} words correct.</div>`;
+        }
+
+        // Output status + diff
+        dom.typeFeedback.innerHTML = statusLine + `<div class="text-left font-mono leading-relaxed bg-white/50 p-4 rounded-lg break-words">${feedbackHTML}</div>`;
         
-        // Remove animation class after it plays so it can be re-triggered
+        // Remove animation class so it can trigger again
         setTimeout(() => dom.typeFeedback.classList.remove('animate-pop'), 500);
-        
-        // Scroll to feedback
-        dom.typeFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     // --- ORDER MODE ---
