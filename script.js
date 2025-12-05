@@ -514,39 +514,89 @@ document.addEventListener('DOMContentLoaded', () => {
         const ignoreCase = dom.typeIgnoreCase.checked;
         const ignorePunct = dom.typeIgnorePunctuation.checked;
 
-        // Generate Diff HTML
-        const resultHtml = generateFeedbackHTML(targetText, userText, ignoreCase, ignorePunct);
+        // Generate Diff HTML and Stats
+        const { html, stats } = generateFeedbackHTML(targetText, userText, ignoreCase, ignorePunct);
+        const wordErrors = calculateWordErrors(targetText, userText, ignoreCase, ignorePunct);
         
         dom.typeFeedback.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
         dom.typeFeedback.classList.add('animate-pop'); // Trigger animation
         
         // Always show the container
         dom.typeFeedback.classList.remove('hidden');
-        dom.typeFeedback.innerHTML = resultHtml;
+        dom.typeFeedback.innerHTML = html;
+        
+        // Add Stats Section
+        const statsDiv = document.createElement('div');
+        statsDiv.className = 'mt-6 flex flex-wrap justify-center gap-4 text-sm font-bold text-gray-600 border-t border-[var(--color-border)] pt-4';
+        
+        let statsHTML = `
+            <div class="bg-red-100 text-red-700 px-4 py-2 rounded-lg shadow-sm border border-red-200">
+                Incorrect Words: ${wordErrors}
+            </div>
+        `;
+        
+        if (!ignoreCase) {
+            statsHTML += `
+                <div class="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg shadow-sm border border-orange-200">
+                    Incorrect Capitals: ${stats.capsErrors}
+                </div>
+            `;
+        }
+        
+        if (!ignorePunct) {
+            statsHTML += `
+                <div class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg shadow-sm border border-blue-200">
+                    Incorrect Punctuation: ${stats.punctErrors}
+                </div>
+            `;
+        }
+        
+        statsDiv.innerHTML = statsHTML;
+        dom.typeFeedback.appendChild(statsDiv);
         
         // Remove animation class so it can trigger again
         setTimeout(() => dom.typeFeedback.classList.remove('animate-pop'), 500);
     }
     
+    function calculateWordErrors(target, user, ignoreCase, ignorePunct) {
+        const clean = (s) => {
+             // If ignoring punct, strip it first so "hello," == "hello"
+             if (ignorePunct) s = s.replace(/[^\w\s\u00C0-\u00FF]|_/g, '');
+             // Normalize space
+             s = s.replace(/\s+/g, ' ').trim();
+             if (ignoreCase) s = s.toLowerCase();
+             return s;
+        };
+        
+        const tWords = clean(target).split(' ').filter(x => x);
+        const uWords = clean(user).split(' ').filter(x => x);
+        
+        let errors = 0;
+        // Simple index-based check. If word is shifted, it counts as error, 
+        // which incentivizes fixing the missing word.
+        const len = Math.max(tWords.length, uWords.length);
+        for(let i = 0; i < len; i++) {
+             if (i >= tWords.length || i >= uWords.length) {
+                 // one is missing -> error
+                 errors++;
+             } else if (tWords[i] !== uWords[i]) {
+                 errors++;
+             }
+        }
+        return errors;
+    }
+    
     function generateFeedbackHTML(target, user, ignoreCase, ignorePunct) {
-        // --- PREPARATION ---
-        // We create "Alignment Strings" to run the diff algorithm on.
-        // These are simplified versions of the text (lowercase, maybe stripped punctuation)
-        // that help the algorithm match 'T' with 't' even if casing is wrong.
-        
-        // We also need to map indices from the Align string back to the Original string
-        // so we can display the Original characters with the correct styling.
-        
+        // Stats
+        let capsErrors = 0;
+        let punctErrors = 0;
+
         function createMap(str) {
             let alignStr = "";
             let indices = []; // indices[alignIndex] = originalIndex
             
             for (let i = 0; i < str.length; i++) {
                 const char = str[i];
-                // Should this char be part of alignment?
-                // If ignorePunct is TRUE, we skip punctuation in the alignment string.
-                // This lets "Hello World" match "Hello, World" (the comma is ignored).
-                
                 let include = true;
                 if (ignorePunct) {
                     if (/[^\w\s\u00C0-\u00FF]|_/.test(char)) {
@@ -555,7 +605,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (include) {
-                    alignStr += char.toLowerCase(); // Always lower for alignment
+                    // CRITICAL LOGIC:
+                    // If ignoreCase is TRUE, we normalize to lower.
+                    // If ignoreCase is FALSE, we keep original case.
+                    alignStr += ignoreCase ? char.toLowerCase() : char;
                     indices.push(i);
                 }
             }
@@ -565,7 +618,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapT = createMap(target);
         const mapU = createMap(user);
         
-        // Run LCS Diff on the simplified alignment strings
         const diffs = calculateDiff(mapT.alignStr, mapU.alignStr);
         // diffs is array of [op, char]. op: 0(match), -1(del from target), 1(ins to user)
         
@@ -573,136 +625,61 @@ document.addEventListener('DOMContentLoaded', () => {
         let tAlignIdx = 0; // Index in mapT.alignStr
         let tLastOrigIdx = 0; // Track last processed index in original target to find skipped punct
         
-        // Helper to escape HTML to prevent XSS
         const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+        const isLetter = (c) => c.toLowerCase() !== c.toUpperCase();
+        const isPunct = (c) => /[^\w\s\u00C0-\u00FF]|_/.test(c);
 
         // --- RENDER LOOP ---
-        diffs.forEach(([op, char]) => {
-            if (op === 1) {
-                // INSERTION (User typed something extra).
-                // We generally ignore showing user's extra typos in the "Target" display
-                // to keep the passage looking clean.
-                return; 
-            }
+        for (let i = 0; i < diffs.length; i++) {
+            const [op, char] = diffs[i];
             
-            // For Equal (0) or Delete (-1), we are processing a char from Target.
-            // First, check if we skipped any chars (punctuation) in the original Target 
-            // before this alignment character.
+            if (op === 1) {
+                // INSERTION
+                continue; 
+            }
             
             const tCurrOrigIdx = mapT.indices[tAlignIdx];
             
-            // Print any skipped characters (punctuation) between last match and this match
+            // Print any skipped characters (punctuation)
             if (tCurrOrigIdx > tLastOrigIdx) {
                 const skippedPart = target.substring(tLastOrigIdx, tCurrOrigIdx);
-                // If ignorePunct is TRUE, these are green (validly ignored).
-                // If ignorePunct is FALSE, these shouldn't have been skipped (logic error?),
-                // but our createMap logic only skips if ignorePunct is TRUE. 
-                // So these are always Green/Valid here.
                 html += `<span class="text-green-600 opacity-60">${esc(skippedPart)}</span>`;
             }
             
-            // Now handle the current aligned character
             const originalChar = target[tCurrOrigIdx];
             
             if (op === 0) {
-                // MATCH in alignment (e.g. 't' matches 't')
-                // But we must check Strict Case if needed.
-                
-                // We compare the *Original* target char with the *Original* user char
-                // We need to find which user char this aligned to.
-                // Since we are iterating diffs linearly, and op=0 consumes one from U,
-                // we can find it via indices logic, but simpler:
-                // We don't have easy access to the exact user original char here due to the diff structure flattening.
-                // HOWEVER: matching 't' (target) with 'T' (user) -> alignStr matched 't'=='t'.
-                
-                // Heuristic: If ignoreCase is OFF, and originalChar != lower(originalChar),
-                // we assume user typed lowercase because alignment used lowercase.
-                // Better: We need to check if we can get the user char. 
-                // Since `diffs` doesn't give us the User's Original Index easily for matches,
-                // we accept a minor approximation:
-                // If strict case is ON, we rely on the fact that if they were different cases,
-                // they would match in alignment but we can't easily verify the user's casing 
-                // without tracking the user index strictly.
-                
-                // Let's refine: We need to know if the User typed 'T' or 't'.
-                // Standard LCS doesn't tell us "Which char from B matched A".
-                
-                // FIX: Since this is a study tool, let's assume if it Matched in LCS, 
-                // it is CORRECT unless we are in Strict Case mode and the Target has uppercase.
-                // If Target is Uppercase and User is Lowercase, it's an error.
-                // But we don't know what User typed! 
-                
-                // RE-FIX: We will trust the user matched correctly if it's green, 
-                // UNLESS we want to be super pedantic. 
-                // Actually, the user specifically asked for "not capitalized... underlined red".
-                // This means we MUST know what the user typed.
-                
-                // To do this simply without complex index tracking:
-                // If the user checked "Ignore Case", it is Green.
-                // If the user Unchecked "Ignore Case", we need to verify.
-                // But wait, if "Ignore Case" is Unchecked, then our alignment map 
-                // SHOULD NOT have lowercased the strings!
-                // If we don't lowercase, then 'T' and 't' won't match in LCS.
-                // They will show up as a DELETE 'T' and INSERT 't'.
-                
-                // PERFECT SOLUTION:
-                // Modify `createMap` to NOT lowercase if ignoreCase is FALSE.
-                // Then LCS will treat 'T' and 't' as different.
-                // 'T' will become a DELETE operation (-1).
-                // DELETE operations are rendered as RED UNDERLINE.
-                // This solves the logic perfectly!
-                
+                // MATCH
                 html += `<span class="text-green-600">${esc(originalChar)}</span>`;
                 
             } else if (op === -1) {
-                // DELETE (Char in Target, missing in User)
-                // This renders as Red Underline.
-                // This covers:
-                // 1. Completely missing letters/words.
-                // 2. Wrong case (if strict mode is on, 'T' != 't', so 'T' is deleted).
-                // 3. Missing punctuation (if strict mode is on).
-                
+                // DELETE (Red Underline)
                 html += `<span class="underline decoration-wavy decoration-red-500 text-red-600 font-bold bg-red-50/50">${esc(originalChar)}</span>`;
+                
+                // --- COUNTING ERRORS ---
+                if (isPunct(originalChar)) {
+                    punctErrors++;
+                } else if (isLetter(originalChar)) {
+                    // Check if it's a capitalization error.
+                    // Pattern: Delete 'T' followed by Insert 't' (or vice versa)
+                    const next = diffs[i + 1];
+                    if (next && next[0] === 1 && next[1].toLowerCase() === char.toLowerCase()) {
+                        capsErrors++;
+                    }
+                }
             }
             
-            tLastOrigIdx = tCurrOrigIdx + 1; // Advance
-            tAlignIdx++; // Advance alignment index
-        });
+            tLastOrigIdx = tCurrOrigIdx + 1;
+            tAlignIdx++;
+        }
         
         // Append any trailing skipped punctuation in Target
         if (tLastOrigIdx < target.length) {
             const tail = target.substring(tLastOrigIdx);
-            // If we are here, these were skipped.
-            // If ignorePunct is True -> Green.
-            // If ignorePunct is False -> They wouldn't be skipped.
             html += `<span class="text-green-600 opacity-60">${esc(tail)}</span>`;
         }
         
-        return html;
-        
-        // --- INNER HELPER: REFINED CREATE MAP ---
-        function createMap(str) {
-            let alignStr = "";
-            let indices = [];
-            for (let i = 0; i < str.length; i++) {
-                const char = str[i];
-                let include = true;
-                if (ignorePunct) {
-                    if (/[^\w\s\u00C0-\u00FF]|_/.test(char)) include = false;
-                }
-                
-                if (include) {
-                    // CRITICAL LOGIC:
-                    // If ignoreCase is TRUE, we normalize to lower.
-                    // If ignoreCase is FALSE, we keep original case.
-                    // This forces LCS to see 'T' vs 't' as a mismatch (Delete/Insert)
-                    // which triggers the Red Underline logic.
-                    alignStr += ignoreCase ? char.toLowerCase() : char;
-                    indices.push(i);
-                }
-            }
-            return { alignStr, indices };
-        }
+        return { html, stats: { capsErrors, punctErrors } };
     }
 
     // Standard LCS (Longest Common Subsequence) Algorithm
