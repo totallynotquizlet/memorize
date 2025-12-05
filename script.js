@@ -66,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
         typeWordsSlider: document.getElementById('type-words-slider'),
         typeWordsDisplay: document.getElementById('type-words-display'),
         typeToggleHints: document.getElementById('type-toggle-hints'),
+        typeIgnoreCase: document.getElementById('type-ignore-case'),
+        typeIgnorePunctuation: document.getElementById('type-ignore-punctuation'),
         typeCheckButton: document.getElementById('type-check-button'),
         typeResetButton: document.getElementById('type-reset-button'),
         typeFeedback: document.getElementById('type-feedback'),
@@ -431,7 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (resetInput) {
             dom.typeInputArea.value = '';
             dom.typeFeedback.className = 'mt-6 hidden p-6 rounded-xl text-center font-bold text-lg shadow-md';
-            dom.typeFeedback.innerHTML = '';
+            dom.typeFeedback.textContent = '';
         }
         
         // Determine which words to give (hint)
@@ -505,69 +507,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function checkTypeAnswer() {
         const passage = app.currentSet.passages[app.currentPassageIndex];
-        const userText = dom.typeInputArea.value; // Keep raw value including newlines
-        const targetText = passage.content;
+        const userText = dom.typeInputArea.value.trim();
+        const targetText = passage.content.trim();
         
-        // 1. Tokenize both strings into "words" for alignment
-        // We split by whitespace but keep the logic simple: verify word by word index.
-        const targetWords = targetText.split(/\s+/).filter(w => w.length > 0);
-        const userWords = userText.split(/\s+/).filter(w => w.length > 0);
-        
-        let feedbackHTML = '';
-        let correctCount = 0;
+        // Get options from checkboxes
+        const ignoreCase = dom.typeIgnoreCase.checked;
+        const ignorePunctuation = dom.typeIgnorePunctuation.checked;
 
-        // Loop through target words to build feedback
-        for (let i = 0; i < targetWords.length; i++) {
-            const targetWord = targetWords[i];
-            const userWord = userWords[i] || ''; // Might be undefined if user typed fewer words
+        // Normalize string for comparison
+        const normalize = str => {
+            let s = str;
             
-            // Case insensitive comparison for the "Whole Word" check
-            if (targetWord.toLowerCase() === userWord.toLowerCase()) {
-                // Correct word
-                correctCount++;
-                feedbackHTML += `<span class="type-diff-correct">${targetWord}</span> `;
-            } else {
-                // Incorrect word - Grouped, but letter-by-letter diff
-                feedbackHTML += '<span class="type-diff-word-group">';
-                
-                // Compare letter by letter
-                const maxLength = Math.max(targetWord.length, userWord.length);
-                
-                for (let j = 0; j < maxLength; j++) {
-                    const tChar = targetWord[j] || '';
-                    const uChar = userWord[j] || '';
-                    
-                    if (tChar.toLowerCase() === uChar.toLowerCase()) {
-                        feedbackHTML += `<span class="type-diff-correct">${tChar}</span>`;
-                    } else if (uChar) {
-                        // User typed wrong char
-                        feedbackHTML += `<span class="type-diff-incorrect">${uChar}</span>`;
-                    } else {
-                         // User missed a char (underscore placeholder)
-                         feedbackHTML += `<span class="type-diff-missing">_</span>`;
-                    }
-                }
-                feedbackHTML += '</span> ';
+            if (ignorePunctuation) {
+                // Remove all punctuation (keep alphanumeric, accents, and spaces)
+                // We assume 'punctuation' is anything that is NOT a word char, space, or accent.
+                s = s.replace(/[^\w\s\u00C0-\u00FF]|_/g, '');
             }
-        }
+            
+            // Collapse whitespace (always do this to be forgiving of extra spaces)
+            s = s.replace(/\s+/g, ' ');
+
+            if (ignoreCase) {
+                s = s.toLowerCase();
+            }
+            
+            return s.trim();
+        };
+        
+        // Split and filter out empty strings (which might happen if a word was only punctuation)
+        const targetWords = normalize(targetText).split(' ').filter(w => w);
+        const userWords = normalize(userText).split(' ').filter(w => w);
+        
+        let correctCount = 0;
+        // Check word by word
+        userWords.forEach((word, i) => {
+            if (i < targetWords.length && word === targetWords[i]) {
+                correctCount++;
+            }
+        });
 
         const totalWords = targetWords.length;
-
+        
         dom.typeFeedback.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
         dom.typeFeedback.classList.add('animate-pop'); // Trigger animation
 
-        // Build the header status line
-        let statusLine = '';
-        if (correctCount === totalWords) {
+        if (correctCount === totalWords && totalWords > 0) {
+            dom.typeFeedback.textContent = `Success! You matched ${correctCount}/${totalWords} words.`;
             dom.typeFeedback.classList.add('bg-green-100', 'text-green-800');
-            statusLine = `<div class="mb-4 text-xl">🎉 Perfect! ${correctCount}/${totalWords} words.</div>`;
         } else {
+            dom.typeFeedback.textContent = `Keep going! ${correctCount}/${totalWords} words correct.`;
             dom.typeFeedback.classList.add('bg-red-100', 'text-red-800');
-            statusLine = `<div class="mb-4 text-xl">Keep trying! ${correctCount}/${totalWords} words correct.</div>`;
         }
-
-        // Output status + diff
-        dom.typeFeedback.innerHTML = statusLine + `<div class="text-left font-mono leading-relaxed bg-white/50 p-4 rounded-lg break-words">${feedbackHTML}</div>`;
         
         // Remove animation class so it can trigger again
         setTimeout(() => dom.typeFeedback.classList.remove('animate-pop'), 500);
